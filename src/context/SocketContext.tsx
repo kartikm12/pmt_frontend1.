@@ -1,0 +1,106 @@
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { io, Socket } from "socket.io-client";
+import { useAuth } from "./AuthContext";
+import { getStoredToken } from "@/lib/api";
+
+interface SocketContextType {
+  socket: Socket | null;
+  isConnected: boolean;
+  joinProject: (projectId: string) => void;
+  leaveProject: (projectId: string) => void;
+}
+
+const SocketContext = createContext<SocketContextType | undefined>(undefined);
+
+export function SocketProvider({ children }: { children: React.ReactNode }) {
+  const { currentUser, logout } = useAuth();
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  const activeProjectsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const token = getStoredToken();
+
+    if (currentUser && token) {
+      // Determine socket URL based on hostname
+      let hostname = window.location.hostname;
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || 
+        (hostname === 'localhost' || hostname === '127.0.0.1' ? `http://${hostname}:4000` : '/');
+
+      const newSocket = io(socketUrl, {
+        auth: { token },
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
+
+      newSocket.on("connect", () => {
+        console.log("Connected to WebSocket");
+        setIsConnected(true);
+        activeProjectsRef.current.forEach((projectId) => {
+          newSocket.emit("join_project", projectId);
+        });
+      });
+
+      newSocket.on("disconnect", () => {
+        console.log("Disconnected from WebSocket");
+        setIsConnected(false);
+      });
+
+      newSocket.on("connect_error", (err) => {
+        console.error("Socket connection error:", err.message);
+      });
+
+      newSocket.on("force_logout", (payload: { message?: string }) => {
+        const message = payload?.message || "Your account was logged in from another device.";
+        logout({ skipServer: true, message });
+      });
+
+      socketRef.current = newSocket;
+      setSocket(newSocket);
+
+      return () => {
+        newSocket.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+        setIsConnected(false);
+      };
+    } else {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+        setIsConnected(false);
+      }
+    }
+  }, [currentUser, logout]);
+
+  const joinProject = (projectId: string) => {
+    activeProjectsRef.current.add(projectId);
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("join_project", projectId);
+    }
+  };
+
+  const leaveProject = (projectId: string) => {
+    activeProjectsRef.current.delete(projectId);
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("leave_project", projectId);
+    }
+  };
+
+  return (
+    <SocketContext.Provider value={{ socket, isConnected, joinProject, leaveProject }}>
+      {children}
+    </SocketContext.Provider>
+  );
+}
+
+export function useSocket() {
+  const context = useContext(SocketContext);
+  if (context === undefined) {
+    throw new Error("useSocket must be used within a SocketProvider");
+  }
+  return context;
+}

@@ -1,0 +1,535 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { Plus, Search, Filter, MoreVertical, FolderOpen, X, Clock } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
+import { createPortal } from "react-dom";
+import { isPast } from "date-fns";
+import { safeFormat } from "@/utils/dateUtils";
+import { api } from "@/lib/api";
+import type { Project, User } from "@/lib/api-types";
+import { useAuth } from "@/context/AuthContext";
+import { useSocket } from "@/context/SocketContext";
+import { MultiSelectDropdown } from "@/components/ui/MultiSelectDropdown";
+import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
+import { isManager } from "@/utils/roleUtils";
+import { CardSkeleton } from "@/components/ui/Skeleton";
+import { Avatar } from "@/components/ui/Avatar";
+
+export function Projects() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialStatus = searchParams.get("status") || "All";
+  const { currentUser } = useAuth();
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchQuery, setActiveSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+  const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDesc, setNewProjectDesc] = useState("");
+  const [newProjectStartDate, setNewProjectStartDate] = useState("");
+  const [newProjectEndDate, setNewProjectEndDate] = useState("");
+  const [newProjectMembers, setNewProjectMembers] = useState<string[]>([]);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [projectsData, teamData] = await Promise.all([api.getProjects(), api.getTeam()]);
+        setAllProjects(projectsData);
+        setUsers(teamData);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to load projects");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void load();
+  }, []);
+
+  const { socket } = useSocket();
+
+  const handleProjectUpdated = (data: any) => {
+    // If the data is from a WebSocket (raw server object), map it first.
+    // If it's already mapped (from api.updateProject), mapProject handles it or we can detect it.
+    // Raw server objects usually have 'members' array instead of 'teamMemberIds' string array.
+    const updatedProject = data.members ? api.mapProject(data as any) : (data as Project);
+
+    setAllProjects((prev) => 
+      prev.map((p) => 
+        p.id === updatedProject.id 
+          ? { ...p, ...updatedProject } 
+          : p
+      )
+    );
+  };
+
+  useEffect(() => {
+    if (socket) {
+      const handleSocketProjectUpdated = (data: any) => {
+        handleProjectUpdated(data);
+      };
+
+      const handleProjectDeleted = (data: { projectId: string }) => {
+        setAllProjects((prev) => prev.filter((p) => p.id !== data.projectId));
+      };
+
+      socket.on("project_updated", handleSocketProjectUpdated);
+      socket.on("project_deleted", handleProjectDeleted);
+
+      return () => {
+        socket.off("project_updated", handleSocketProjectUpdated);
+        socket.off("project_deleted", handleProjectDeleted);
+      };
+    }
+  }, [socket]);
+
+  const filteredProjects = useMemo(() => {
+    return allProjects.filter((project) => {
+      const matchesSearch =
+        project.name.toLowerCase().includes(activeSearchQuery.toLowerCase()) ||
+        project.description.toLowerCase().includes(activeSearchQuery.toLowerCase());
+      
+      const matchesStatus = 
+        statusFilter === "All" || 
+        (statusFilter === "Pending" ? (project.status === "Planning" || project.status === "On Hold") : project.status === statusFilter);
+        
+      return matchesSearch && matchesStatus;
+    });
+  }, [activeSearchQuery, statusFilter, allProjects]);
+
+  const handleSearch = () => {
+    setActiveSearchQuery(searchQuery);
+  };
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    if (
+      !newProjectName.trim() ||
+      !newProjectDesc.trim() ||
+      !newProjectStartDate ||
+      !newProjectEndDate ||
+      newProjectMembers.length === 0
+    ) {
+      toast.error("All project fields are required.");
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    if (newProjectEndDate && newProjectEndDate < todayStr) {
+      toast.error("Deadline (End Date) must be today or a future date.");
+      return;
+    }
+
+    try {
+      const project = await api.createProject({
+        name: newProjectName,
+        description: newProjectDesc,
+        startDate: new Date(newProjectStartDate).toISOString(),
+        dueDate: new Date(newProjectEndDate).toISOString(),
+        managerId: currentUser.id,
+        memberIds: newProjectMembers
+      });
+
+      setAllProjects((prev) => [project, ...prev]);
+      setIsNewProjectModalOpen(false);
+      setNewProjectName("");
+      setNewProjectDesc("");
+      setNewProjectStartDate("");
+      setNewProjectEndDate("");
+      setNewProjectMembers([]);
+      toast.success("Project created successfully!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create project");
+    }
+  };
+
+  const handleEditProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProject) return;
+
+    if (
+      !editingProject.name.trim() ||
+      !editingProject.description.trim() ||
+      !editingProject.startDate ||
+      !editingProject.dueDate ||
+      !editingProject.teamMemberIds?.length
+    ) {
+      toast.error("All project fields are required.");
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const projectEndDateStr = safeFormat(editingProject.dueDate, "yyyy-MM-dd");
+    if (projectEndDateStr && projectEndDateStr < todayStr) {
+      toast.error("Deadline (End Date) must be today or a future date.");
+      return;
+    }
+
+    try {
+      const updated = await api.updateProject(editingProject.id, editingProject);
+      handleProjectUpdated(updated);
+      setIsEditProjectModalOpen(false);
+      setEditingProject(null);
+      toast.success("Project updated successfully!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update project");
+    }
+  };
+
+  const deleteProject = async () => {
+    if (!projectToDelete) return;
+
+    try {
+      await api.deleteProject(projectToDelete);
+      setAllProjects((prev) => prev.filter((project) => project.id !== projectToDelete));
+      toast.success("Project deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete project");
+    } finally {
+      setProjectToDelete(null);
+    }
+  };
+
+  return (
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Projects</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1.5 text-lg">Manage and track all your team's projects.</p>
+        </div>
+        {isManager(currentUser?.role) && (
+          <button onClick={() => setIsNewProjectModalOpen(true)} className="btn-primary px-6 py-2.5 flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            New Project
+          </button>
+        )}
+      </div>
+
+      {isNewProjectModalOpen && (
+        <ProjectModal
+          title="Create New Project"
+          onClose={() => setIsNewProjectModalOpen(false)}
+          onSubmit={handleCreateProject}
+          name={newProjectName}
+          setName={setNewProjectName}
+          description={newProjectDesc}
+          setDescription={setNewProjectDesc}
+          startDate={newProjectStartDate}
+          setStartDate={setNewProjectStartDate}
+          endDate={newProjectEndDate}
+          setEndDate={setNewProjectEndDate}
+          memberIds={newProjectMembers}
+          setMemberIds={setNewProjectMembers}
+          users={users}
+          submitLabel="Create Project"
+        />
+      )}
+
+      {isEditProjectModalOpen && editingProject && (
+        <ProjectModal
+          title="Edit Project"
+          onClose={() => setIsEditProjectModalOpen(false)}
+          onSubmit={handleEditProject}
+          name={editingProject.name}
+          setName={(value) => setEditingProject({ ...editingProject, name: value })}
+          description={editingProject.description}
+          setDescription={(value) => setEditingProject({ ...editingProject, description: value })}
+          startDate={safeFormat(editingProject.startDate, "yyyy-MM-dd")}
+          setStartDate={(value) => setEditingProject({ ...editingProject, startDate: new Date(value).toISOString() })}
+          endDate={safeFormat(editingProject.dueDate, "yyyy-MM-dd")}
+          setEndDate={(value) => setEditingProject({ ...editingProject, dueDate: new Date(value).toISOString() })}
+          status={editingProject.status}
+          setStatus={(value) => setEditingProject({ ...editingProject, status: value as Project["status"] })}
+          memberIds={editingProject.teamMemberIds || []}
+          setMemberIds={(ids) => setEditingProject({ ...editingProject, teamMemberIds: ids })}
+          users={users}
+          submitLabel="Save Changes"
+        />
+      )}
+
+      {projectToDelete &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300">
+            <div className="card w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+              <div className="p-8 text-center space-y-5">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto">
+                  <X className="w-8 h-8 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Delete Project?</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                    Are you sure you want to delete this project? This action cannot be undone.
+                  </p>
+                </div>
+                <div className="pt-4 flex gap-4">
+                  <button onClick={() => setProjectToDelete(null)} className="flex-1 px-6 py-3 btn-secondary text-sm font-bold">
+                    Cancel
+                  </button>
+                  <button onClick={deleteProject} className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition-all">
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 card p-4">
+        <div className="relative flex-1 flex gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search projects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none transition-all dark:text-slate-100"
+            />
+          </div>
+          <button onClick={handleSearch} className="btn-primary px-6 py-2.5">
+            Search
+          </button>
+        </div>
+        <div className="relative min-w-[200px]">
+          <SingleSelectDropdown
+            options={[
+              { id: "All", name: "All Statuses" },
+              { id: "Pending", name: "Pending (Planning & On Hold)" },
+              { id: "Planning", name: "Planning" },
+              { id: "Active", name: "Active" },
+              { id: "Completed", name: "Completed" },
+              { id: "On Hold", name: "On Hold" },
+            ]}
+            selectedId={statusFilter}
+            onChange={(id) => {
+              setStatusFilter(id);
+              setSearchParams({ status: id });
+            }}
+            Icon={Filter}
+          />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 card border-dashed transition-colors">
+          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-6">
+            <FolderOpen className="w-10 h-10 text-slate-400" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">No projects found</h3>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-sm text-center text-lg">
+            We couldn't find any projects matching your current search and filter criteria.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {filteredProjects.map((project) => (
+            <Link key={project.id} to={`/projects/${project.id}`} className="card hover:shadow-md hover:translate-y-[-2px] transition-all group cursor-pointer block overflow-hidden">
+              <div className="p-8">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xl">
+                      {project.name.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className={`text-lg font-bold transition-colors ${
+                        project.status !== "Completed" && isPast(new Date(project.dueDate))
+                          ? "text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300"
+                          : "text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                      }`}>
+                        {project.name}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Due {safeFormat(project.dueDate, "MMM d, yyyy")}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {isManager(currentUser?.role) && (
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setActiveMenu(activeMenu === project.id ? null : project.id);
+                        }}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <MoreVertical className="w-5 h-5" />
+                      </button>
+
+                      {activeMenu === project.id && (
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-30 py-2 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setEditingProject({ ...project });
+                              setIsEditProjectModalOpen(true);
+                              setActiveMenu(null);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            Edit Project
+                          </button>
+
+                          <div className="h-px bg-slate-100 dark:bg-slate-800 my-2 mx-2" />
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setProjectToDelete(project.id);
+                              setActiveMenu(null);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            Delete Project
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-5 line-clamp-2 min-h-[40px] leading-relaxed">{project.description}</p>
+
+                <div className="mt-8 flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800/50">
+                  <div className="flex -space-x-2">
+                    {project.teamMemberIds.slice(0, 4).map((id) => {
+                      const user = users.find((member) => member.id === id);
+                      return user ? (
+                        <Avatar key={id} name={user.name} src={user.avatar} className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 shadow-sm" />
+                      ) : null;
+                    })}
+                  </div>
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      project.status === "Active"
+                        ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+                        : project.status === "Completed"
+                          ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                          : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                    }`}
+                  >
+                    {project.status}
+                  </span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProjectModal(props: {
+  title: string;
+  onClose: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+  name: string;
+  setName: (value: string) => void;
+  description: string;
+  setDescription: (value: string) => void;
+  startDate: string;
+  setStartDate: (value: string) => void;
+  endDate: string;
+  setEndDate: (value: string) => void;
+  status?: Project["status"];
+  setStatus?: (value: string) => void;
+  memberIds?: string[];
+  setMemberIds?: (ids: string[]) => void;
+  users?: User[];
+  submitLabel: string;
+}) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300">
+      <div className="card w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+        <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">{props.title}</h2>
+          <button onClick={props.onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        <form onSubmit={props.onSubmit} className="p-8 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Name</label>
+            <input required value={props.name} onChange={(e) => props.setName(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Description</label>
+            <textarea required value={props.description} onChange={(e) => props.setDescription(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none h-28 dark:text-slate-100" />
+          </div>
+          {props.setStatus && props.status && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Status</label>
+              <SingleSelectDropdown
+                options={[
+                  { id: "Planning", name: "Planning" },
+                  { id: "Active", name: "Active" },
+                  { id: "Completed", name: "Completed" },
+                  { id: "On Hold", name: "On Hold" },
+                ]}
+                selectedId={props.status}
+                onChange={(id) => props.setStatus?.(id)}
+              />
+            </div>
+          )}
+          {props.memberIds && props.setMemberIds && props.users && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Project Team</label>
+              <>
+                <MultiSelectDropdown 
+                  options={props.users} 
+                  selectedIds={props.memberIds} 
+                  onChange={(ids) => props.setMemberIds?.(ids)} 
+                  placeholder="Search and select project members..."
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400">At least one project team member is required.</p>
+              </>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Start Date</label>
+              <input required type="date" value={props.startDate} onChange={(e) => props.setStartDate(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">End Date</label>
+              <input 
+                required 
+                type="date" 
+                value={props.endDate} 
+                min={new Date().toLocaleDateString('en-CA')}
+                onChange={(e) => props.setEndDate(e.target.value)} 
+                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" 
+              />
+            </div>
+          </div>
+          <div className="pt-6 flex gap-4">
+            <button type="button" onClick={props.onClose} className="flex-1 px-6 py-3 btn-secondary text-sm font-bold">
+              Cancel
+            </button>
+            <button type="submit" className="flex-1 btn-primary font-bold py-3">
+              {props.submitLabel}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}

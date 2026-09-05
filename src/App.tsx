@@ -1,0 +1,89 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
+import { MainLayout } from "./components/layout/MainLayout";
+import { Dashboard } from "./pages/Dashboard";
+import { Projects } from "./pages/Projects";
+import { ProjectDetails } from "./pages/ProjectDetails";
+import { Tasks } from "./pages/Tasks";
+import { TaskDetails } from "./pages/TaskDetails";
+import { Reports } from "./pages/Reports";
+import { Leaderboard } from "./pages/Leaderboard";
+import { Team } from "./pages/Team";
+import { Settings } from "./pages/Settings";
+import { Notifications } from "./pages/Notifications";
+import { Login } from "./pages/Login";
+import { ThemeProvider } from "./context/ThemeContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { NavigationProvider } from "./context/NavigationContext";
+import { SocketProvider, useSocket } from "./context/SocketContext";
+import { NotificationProvider } from "./context/NotificationContext";
+import { toast } from "sonner";
+import { useEffect } from "react";
+
+function AppRoutes() {
+  const { currentUser, logout, isLoading } = useAuth();
+  const { socket } = useSocket();
+  const isAuthenticated = !!currentUser;
+
+
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route 
+        path="/login" 
+        element={
+          isAuthenticated ? <Navigate to="/" replace /> : <Login />
+        } 
+      />
+      <Route 
+        path="/" 
+        element={
+          isAuthenticated ? <MainLayout onLogout={logout} /> : <Navigate to="/login" replace />
+        }
+      >
+        <Route index element={<Dashboard />} />
+        <Route path="projects" element={<Projects />} />
+        <Route path="projects/:id" element={<ProjectDetails />} />
+        <Route path="tasks" element={<Tasks />} />
+        <Route path="tasks/:id" element={<TaskDetails />} />
+        <Route path="reports" element={<Reports />} />
+        <Route path="leaderboard" element={<Leaderboard />} />
+        <Route path="team" element={<Team />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="notifications" element={<Notifications />} />
+      </Route>
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <SocketProvider>
+          <NotificationProvider>
+            <NavigationProvider>
+              <Router>
+                <Toaster position="top-right" richColors />
+                <AppRoutes />
+              </Router>
+            </NavigationProvider>
+          </NotificationProvider>
+        </SocketProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
