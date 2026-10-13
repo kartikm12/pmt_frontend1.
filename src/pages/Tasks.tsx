@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { AddTaskModal } from "@/components/AddTaskModal";
 import { api } from "@/lib/api";
 import type { Project, Task, TaskPriority, TaskStatus, User } from "@/lib/api-types";
-import { safeFormat, isOverdue } from "@/utils/dateUtils";
+import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
@@ -39,6 +39,14 @@ export function Tasks() {
   const [formError, setFormError] = useState("");
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+
+  // Close the row menu on any outside click (its own buttons stop propagation)
+  useEffect(() => {
+    if (!activeMenu) return;
+    const close = () => setActiveMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [activeMenu]);
 
   useEffect(() => {
     async function load() {
@@ -116,28 +124,19 @@ export function Tasks() {
     setIsModalOpen(true);
   };
 
+  const taskFormError = () => {
+    if (!editingTask && !newTaskProjectId) return "Please select a project.";
+    if (!newTaskTitle.trim() || !newTaskDescription.trim()) return "All task fields are required.";
+    if (!newTaskAssigneeIds.length) return "Please assign at least one team member.";
+    return deadlineError(newTaskDueDate, editingTask?.dueDate);
+  };
+
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTask && !newTaskProjectId) {
-      setFormError("Please select a project.");
-      return;
-    }
-    if (!newTaskTitle.trim() || !newTaskDescription.trim()) {
-      setFormError("All task fields are required.");
-      return;
-    }
-    if (!newTaskDueDate) {
-      setFormError("Please select a deadline.");
-      return;
-    }
-    if (!newTaskAssigneeIds.length) {
-      setFormError("Please assign at least one team member.");
-      return;
-    }
-
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    if (newTaskDueDate && newTaskDueDate < todayStr) {
-      setFormError("Deadline must be today or a future date.");
+    // A status-only update has nothing else to validate
+    const validationError = editingTask && !isManager ? null : taskFormError();
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
 
@@ -373,7 +372,7 @@ export function Tasks() {
                                     }}
                                     className="block w-full text-left px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                                   >
-                                    Edit Task
+                                    {isManager ? "Edit Task" : "Update Status"}
                                   </button>
                                 {isManager && (
                                   <>

@@ -2,11 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Plus, MoreHorizontal, Calendar, MessageSquare, Paperclip, X, Edit2 } from "lucide-react";
 import { toast } from "sonner";
-import { isPast } from "date-fns";
 import { AddTaskModal } from "@/components/AddTaskModal";
 import { api, API_BASE_URL } from "@/lib/api";
 import type { Project, Task, TaskPriority, TaskStatus, User, Attachment } from "@/lib/api-types";
-import { safeFormat } from "@/utils/dateUtils";
+import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { useNavigation } from "@/context/NavigationContext";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
@@ -41,9 +40,13 @@ export function ProjectDetails() {
   const isManager = ["Manager", "Project Manager", "Admin"].includes(currentUser?.role ?? "");
   const { socket, joinProject, leaveProject } = useSocket();
 
+  const [loadError, setLoadError] = useState("");
+
   useEffect(() => {
     async function load() {
       if (!id) return;
+      setProject(null);
+      setLoadError("");
 
       try {
         const [bundle, projectsData, teamData] = await Promise.all([
@@ -64,7 +67,7 @@ export function ProjectDetails() {
           return merged;
         });
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load project");
+        setLoadError(error instanceof Error ? error.message : "Failed to load project");
       }
     }
 
@@ -84,6 +87,8 @@ export function ProjectDetails() {
   useEffect(() => {
     if (socket) {
       const handleTaskCreated = (data: any) => {
+        // This socket may also be in other project rooms (e.g. Leaderboard filter)
+        if (data.projectId !== id) return;
         api.getTask(data.taskId).then(fullTask => {
           setTasks((current) => {
             if (current.some((t) => t.id === fullTask.id)) return current;
@@ -128,21 +133,41 @@ export function ProjectDetails() {
         }
       };
 
+      const handleProjectDeleted = (data: { projectId: string }) => {
+        if (data.projectId !== id) return;
+        toast.info("This project was deleted");
+        navigate("/projects");
+      };
+
       socket.on("task_created", handleTaskCreated);
       socket.on("task_updated", handleTaskUpdated);
       socket.on("task_deleted", handleTaskDeleted);
       socket.on("project_updated", handleProjectUpdated);
+      socket.on("project_deleted", handleProjectDeleted);
 
       return () => {
         socket.off("task_created", handleTaskCreated);
         socket.off("task_updated", handleTaskUpdated);
         socket.off("task_deleted", handleTaskDeleted);
         socket.off("project_updated", handleProjectUpdated);
+        socket.off("project_deleted", handleProjectDeleted);
       };
     }
-  }, [socket]);
+  }, [socket, id]);
 
   const userMap = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+
+  if (loadError) {
+    return (
+      <div className="text-center py-20">
+        <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Project not available</h2>
+        <p className="text-slate-500 dark:text-slate-400 mt-2">{loadError}</p>
+        <button onClick={() => navigate("/projects")} className="mt-4 text-indigo-600 font-medium">
+          Back to projects
+        </button>
+      </div>
+    );
+  }
 
   if (!project) {
     return <div className="text-slate-500 dark:text-slate-400">Loading project...</div>;
@@ -181,19 +206,14 @@ export function ProjectDetails() {
       return;
     }
 
-    if (!newTaskDueDate) {
-      setFormError("Please select a deadline.");
-      return;
-    }
-
     if (!newTaskAssigneeIds.length) {
       setFormError("Please assign at least one team member.");
       return;
     }
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    if (newTaskDueDate && newTaskDueDate < todayStr) {
-      setFormError("Deadline must be today or a future date.");
+    const dateError = deadlineError(newTaskDueDate, taskToEdit?.dueDate);
+    if (dateError) {
+      setFormError(dateError);
       return;
     }
 
@@ -260,7 +280,7 @@ export function ProjectDetails() {
         <div>
           <div className="flex items-center gap-4">
             <h1 className={`text-4xl font-black tracking-tight ${
-              project.status !== "Completed" && isPast(new Date(project.dueDate))
+              project.status !== "Completed" && isOverdue(project.dueDate)
                 ? "text-red-600 dark:text-red-400"
                 : "text-slate-900 dark:text-white"
             }`}>
@@ -281,10 +301,12 @@ export function ProjectDetails() {
               ) : null;
             })}
           </div>
-          <button onClick={() => openModal("To Do")} className="btn-primary flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            New Task
-          </button>
+          {isManager && (
+            <button onClick={() => openModal("To Do")} className="btn-primary flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              New Task
+            </button>
+          )}
         </div>
       </div>
 
@@ -346,7 +368,7 @@ export function ProjectDetails() {
                             <h4 className={`font-bold text-sm line-clamp-2 transition-colors leading-relaxed ${
                               task.status === "Completed"
                                 ? "text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-500"
-                                : isPast(new Date(task.dueDate))
+                                : isOverdue(task.dueDate)
                                   ? "text-red-600 dark:text-red-400 group-hover:text-red-500"
                                   : "text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                             }`}>

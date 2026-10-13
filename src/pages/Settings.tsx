@@ -43,7 +43,7 @@ export function Settings() {
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [currentPassword, setCurrentPassword] = useState(() => localStorage.getItem("current_password") || "");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -89,6 +89,14 @@ export function Settings() {
   };
 
   const handlePasswordSave = async () => {
+    if (!currentPassword) {
+      toast.error("Enter your current password");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast.error("New password and confirm password must match");
       return;
@@ -100,8 +108,7 @@ export function Settings() {
         currentPassword,
         newPassword
       });
-      localStorage.setItem("current_password", newPassword);
-      setCurrentPassword(newPassword);
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       toast.success("Password updated successfully");

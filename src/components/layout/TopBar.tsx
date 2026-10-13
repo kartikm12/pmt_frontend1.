@@ -95,8 +95,10 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           </button>
 
           <div className="relative" ref={notificationsRef}>
-            <button 
+            <button
               onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+              aria-expanded={isNotificationsOpen}
               className={`relative p-2 rounded-lg transition-all active:scale-95 ${
                 isNotificationsOpen 
                   ? "text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20" 

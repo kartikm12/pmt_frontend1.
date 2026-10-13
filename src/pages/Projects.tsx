@@ -3,8 +3,7 @@ import { Plus, Search, Filter, MoreVertical, FolderOpen, X, Clock } from "lucide
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
-import { isPast } from "date-fns";
-import { safeFormat } from "@/utils/dateUtils";
+import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { api } from "@/lib/api";
 import type { Project, User } from "@/lib/api-types";
 import { useAuth } from "@/context/AuthContext";
@@ -60,7 +59,13 @@ export function Projects() {
     // Raw server objects usually have 'members' array instead of 'teamMemberIds' string array.
     const updatedProject = data.members ? api.mapProject(data as any) : (data as Project);
 
-    setAllProjects((prev) => 
+    // Dropped from the team: reload, since the server decides what is still visible (e.g. via task assignments)
+    if (currentUser && !isManager(currentUser.role) && !updatedProject.teamMemberIds.includes(currentUser.id)) {
+      void api.getProjects().then(setAllProjects).catch(() => undefined);
+      return;
+    }
+
+    setAllProjects((prev) =>
       prev.map((p) => 
         p.id === updatedProject.id 
           ? { ...p, ...updatedProject } 
@@ -107,6 +112,20 @@ export function Projects() {
     setActiveSearchQuery(searchQuery);
   };
 
+  const projectDatesError = (start: string, end: string, originalDue?: string) => {
+    if (start && end && start > end) return "Start date must be on or before the end date.";
+    const endError = deadlineError(end, originalDue);
+    return endError && endError.startsWith("Deadline") ? "Deadline (End Date) must be today or a future date." : endError;
+  };
+
+  // Close the card menu on any outside click
+  useEffect(() => {
+    if (!activeMenu) return;
+    const close = () => setActiveMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [activeMenu]);
+
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
@@ -122,9 +141,9 @@ export function Projects() {
       return;
     }
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    if (newProjectEndDate && newProjectEndDate < todayStr) {
-      toast.error("Deadline (End Date) must be today or a future date.");
+    const createDateError = projectDatesError(newProjectStartDate, newProjectEndDate);
+    if (createDateError) {
+      toast.error(createDateError);
       return;
     }
 
@@ -166,10 +185,15 @@ export function Projects() {
       return;
     }
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    const projectEndDateStr = safeFormat(editingProject.dueDate, "yyyy-MM-dd");
-    if (projectEndDateStr && projectEndDateStr < todayStr) {
-      toast.error("Deadline (End Date) must be today or a future date.");
+    // Compare with the saved deadline so an overdue project can still be edited (e.g. marked Completed)
+    const original = allProjects.find((p) => p.id === editingProject.id);
+    const editDateError = projectDatesError(
+      safeFormat(editingProject.startDate, "yyyy-MM-dd", ""),
+      safeFormat(editingProject.dueDate, "yyyy-MM-dd", ""),
+      original?.dueDate
+    );
+    if (editDateError) {
+      toast.error(editDateError);
       return;
     }
 
@@ -242,10 +266,12 @@ export function Projects() {
           setName={(value) => setEditingProject({ ...editingProject, name: value })}
           description={editingProject.description}
           setDescription={(value) => setEditingProject({ ...editingProject, description: value })}
-          startDate={safeFormat(editingProject.startDate, "yyyy-MM-dd")}
-          setStartDate={(value) => setEditingProject({ ...editingProject, startDate: new Date(value).toISOString() })}
-          endDate={safeFormat(editingProject.dueDate, "yyyy-MM-dd")}
-          setEndDate={(value) => setEditingProject({ ...editingProject, dueDate: new Date(value).toISOString() })}
+          startDate={safeFormat(editingProject.startDate, "yyyy-MM-dd", "")}
+          // A cleared date input gives "", and new Date("").toISOString() throws and blanked the page
+          setStartDate={(value) => setEditingProject({ ...editingProject, startDate: value ? new Date(value).toISOString() : "" })}
+          endDate={safeFormat(editingProject.dueDate, "yyyy-MM-dd", "")}
+          setEndDate={(value) => setEditingProject({ ...editingProject, dueDate: value ? new Date(value).toISOString() : "" })}
+          isEdit
           status={editingProject.status}
           setStatus={(value) => setEditingProject({ ...editingProject, status: value as Project["status"] })}
           memberIds={editingProject.teamMemberIds || []}
@@ -309,6 +335,7 @@ export function Projects() {
               { id: "Active", name: "Active" },
               { id: "Completed", name: "Completed" },
               { id: "On Hold", name: "On Hold" },
+              { id: "Cancelled", name: "Cancelled" },
             ]}
             selectedId={statusFilter}
             onChange={(id) => {
@@ -348,7 +375,7 @@ export function Projects() {
                     </div>
                     <div>
                       <h3 className={`text-lg font-bold transition-colors ${
-                        project.status !== "Completed" && isPast(new Date(project.dueDate))
+                        project.status !== "Completed" && isOverdue(project.dueDate)
                           ? "text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300"
                           : "text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                       }`}>
@@ -454,6 +481,7 @@ function ProjectModal(props: {
   setMemberIds?: (ids: string[]) => void;
   users?: User[];
   submitLabel: string;
+  isEdit?: boolean;
 }) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300">
@@ -482,6 +510,7 @@ function ProjectModal(props: {
                   { id: "Active", name: "Active" },
                   { id: "Completed", name: "Completed" },
                   { id: "On Hold", name: "On Hold" },
+                  { id: "Cancelled", name: "Cancelled" },
                 ]}
                 selectedId={props.status}
                 onChange={(id) => props.setStatus?.(id)}
@@ -512,8 +541,9 @@ function ProjectModal(props: {
               <input 
                 required 
                 type="date" 
-                value={props.endDate} 
-                min={new Date().toLocaleDateString('en-CA')}
+                value={props.endDate}
+                // On edit a past deadline must stay saveable; the browser would otherwise refuse to submit
+                min={props.isEdit ? props.startDate || undefined : new Date().toLocaleDateString('en-CA')}
                 onChange={(e) => props.setEndDate(e.target.value)} 
                 className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" 
               />

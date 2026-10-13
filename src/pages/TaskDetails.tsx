@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ChevronRight, ArrowLeft, AlignLeft, MessageSquare, Clock, Tag, Calendar, User as UserIcon, Edit2 } from "lucide-react";
+import { ChevronRight, ArrowLeft, AlignLeft, MessageSquare, Clock, Tag, Calendar, User as UserIcon, Edit2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Activity, Project, Task, User, Attachment, TaskPriority, TaskStatus } from "@/lib/api-types";
 import { AttachmentSection } from "@/components/AttachmentSection";
 import { AddTaskModal } from "@/components/AddTaskModal";
-import { safeFormat } from "@/utils/dateUtils";
-import { isPast } from "date-fns";
+import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { useNavigation } from "@/context/NavigationContext";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
@@ -110,6 +109,8 @@ export function TaskDetails() {
   useEffect(() => {
     async function load() {
       if (!id) return;
+      setIsLoading(true);
+      setTask(null);
 
       try {
         const [taskData, activityData] = await Promise.all([
@@ -135,17 +136,15 @@ export function TaskDetails() {
     }
 
     void load();
+  }, [id]);
 
-    if (task?.projectId) {
-      joinProject(task.projectId);
-    }
-
-    return () => {
-      if (task?.projectId) {
-        leaveProject(task.projectId);
-      }
-    };
-  }, [id, task?.projectId]);
+  // Separate from loading: joining the room used to re-run the whole load once the task arrived
+  const taskProjectId = task?.projectId;
+  useEffect(() => {
+    if (!taskProjectId) return;
+    joinProject(taskProjectId);
+    return () => leaveProject(taskProjectId);
+  }, [taskProjectId]);
 
   const renderCommentWithMentions = (text: string) => {
     if (!text) return text;
@@ -233,6 +232,17 @@ export function TaskDetails() {
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    if (!id || !window.confirm("Delete this comment?")) return;
+    try {
+      await api.deleteComment(commentId);
+      setTask((prev) => prev && { ...prev, comments: prev.comments?.filter((c) => c.id !== commentId) });
+      toast.success("Comment deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete comment");
+    }
+  };
+
   const openModal = () => {
     if (!task) return;
     setNewTaskTitle(task.title);
@@ -250,29 +260,27 @@ export function TaskDetails() {
     e.preventDefault();
     if (!id || !task) return;
 
-    if (!newTaskTitle.trim() || !newTaskDescription.trim()) {
-      setFormError("All task fields are required.");
-      return;
-    }
+    if (isManager) {
+      if (!newTaskTitle.trim() || !newTaskDescription.trim()) {
+        setFormError("All task fields are required.");
+        return;
+      }
 
-    if (!newTaskDueDate) {
-      setFormError("Please select a deadline.");
-      return;
-    }
+      if (!newTaskAssigneeIds.length) {
+        setFormError("Please assign at least one team member.");
+        return;
+      }
 
-    if (!newTaskAssigneeIds.length) {
-      setFormError("Please assign at least one team member.");
-      return;
-    }
-
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    if (newTaskDueDate && newTaskDueDate < todayStr) {
-      setFormError("Deadline must be today or a future date.");
-      return;
+      const dateError = deadlineError(newTaskDueDate, task.dueDate);
+      if (dateError) {
+        setFormError(dateError);
+        return;
+      }
     }
 
     try {
-      const updated = await api.updateTask(id, {
+      // Non-managers may only move the status; the server ignores anything else they send
+      const updated = await api.updateTask(id, isManager ? {
         title: newTaskTitle,
         description: newTaskDescription,
         priority: newTaskPriority,
@@ -280,11 +288,12 @@ export function TaskDetails() {
         dueDate: new Date(newTaskDueDate).toISOString(),
         projectId: newTaskProjectId,
         assigneeIds: newTaskAssigneeIds
-      });
+      } : { status: newTaskStatus });
 
       setTask(updated);
       setIsModalOpen(false);
-      toast.success("Task updated successfully!");
+      void api.getActivity(`?taskId=${id}`).then(setActivity).catch(() => undefined);
+      toast.success(isManager ? "Task updated successfully!" : "Task status updated!");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Failed to save task");
     }
@@ -323,7 +332,7 @@ export function TaskDetails() {
             <h1 className={`text-3xl font-bold tracking-tight ${
               task.status === "Completed"
                 ? "text-emerald-600 dark:text-emerald-400"
-                : isPast(new Date(task.dueDate))
+                : isOverdue(task.dueDate)
                   ? "text-red-600 dark:text-red-400"
                   : "text-zinc-900 dark:text-zinc-100"
             }`}>
@@ -339,15 +348,14 @@ export function TaskDetails() {
             </div>
           </div>
         </div>
-        {isManager && (
-          <button
-            onClick={openModal}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
-          >
-            <Edit2 className="w-4 h-4" />
-            Edit Task
-          </button>
-        )}
+        {/* Everyone who can see the task may move its status; only managers edit the rest */}
+        <button
+          onClick={openModal}
+          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
+        >
+          <Edit2 className="w-4 h-4" />
+          {isManager ? "Edit Task" : "Update Status"}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -456,13 +464,26 @@ export function TaskDetails() {
                           <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors">
                             {actor?.name ?? "System"}
                           </span>
-                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-zinc-50 dark:bg-zinc-900/50 px-2 py-0.5 rounded-full border border-zinc-100 dark:border-zinc-800">
-                            {safeFormat(entry.createdAt, "MMM d, h:mm a")}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-zinc-50 dark:bg-zinc-900/50 px-2 py-0.5 rounded-full border border-zinc-100 dark:border-zinc-800">
+                              {safeFormat(entry.createdAt, "MMM d, h:mm a")}
+                            </span>
+                            {!entry.isSystem && (entry.userId === currentUser?.id || isManager) && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteComment(entry.id)}
+                                className="p-1 text-zinc-400 hover:text-red-600 rounded transition-colors"
+                                title="Delete comment"
+                                aria-label="Delete comment"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <p className={`text-sm leading-relaxed ${
-                          entry.isSystem 
-                            ? "text-zinc-500 font-medium" 
+                        <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                          entry.isSystem
+                            ? "text-zinc-500 font-medium"
                             : "text-zinc-700 dark:text-zinc-300"
                         }`}>
                           {entry.isSystem ? entry.details : renderCommentWithMentions(entry.details)}

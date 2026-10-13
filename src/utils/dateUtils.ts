@@ -37,6 +37,16 @@ export function safeToISOString(date: Date | string | number | undefined | null)
 }
 
 /**
+ * Validates a yyyy-MM-dd deadline from a date input. New or changed deadlines must be today or later;
+ * an existing item's unchanged deadline is always fine, so overdue work can still be edited and completed.
+ */
+export function deadlineError(newDate: string, originalDate?: string | null): string | null {
+  if (!newDate) return "Please select a deadline.";
+  if (originalDate && safeFormat(originalDate, "yyyy-MM-dd") === newDate) return null;
+  return newDate < new Date().toLocaleDateString("en-CA") ? "Deadline must be today or a future date." : null;
+}
+
+/**
  * Checks if a given date is strictly overdue relative to the start of today.
  * A task due later today is NOT considered overdue.
  */

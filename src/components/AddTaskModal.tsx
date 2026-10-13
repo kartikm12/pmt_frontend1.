@@ -60,8 +60,6 @@ export function AddTaskModal({
   handleBackdropClick,
   statusOnly = false
 }: AddTaskModalProps) {
-  if (!isOpen) return null;
-
   const availableUsers = React.useMemo(() => {
     if (!users) return [];
     if (projects && newTaskProjectId) {
@@ -73,8 +71,9 @@ export function AddTaskModal({
     return users;
   }, [users, projects, newTaskProjectId]);
 
-  // Clear assignees that don't belong to the newly selected project
+  // Clear assignees that don't belong to the newly selected project (status-only users can't change them)
   React.useEffect(() => {
+    if (!isOpen || statusOnly) return;
     if (newTaskProjectId && newTaskAssigneeIds && setNewTaskAssigneeIds && projects && users) {
       const parentProject = projects.find(p => p.id === newTaskProjectId);
       if (parentProject) {
@@ -86,7 +85,10 @@ export function AddTaskModal({
         }
       }
     }
-  }, [newTaskProjectId, projects, users]); // Only watch project change, don't watch assignee change to avoid loops
+  }, [isOpen, newTaskProjectId, projects, users]); // Only watch project change, don't watch assignee change to avoid loops
+
+  // Hooks above must run on every render; returning before them crashed the page when the modal opened
+  if (!isOpen) return null;
 
   return createPortal(
     <div 
@@ -255,7 +257,8 @@ export function AddTaskModal({
                   id="task-deadline"
                   type="date" 
                   value={newTaskDueDate}
-                  min={new Date().toLocaleDateString('en-CA')}
+                  // Only new tasks need a future date; a min on edit blocks saving an overdue task at all
+                  min={taskToEdit ? undefined : new Date().toLocaleDateString('en-CA')}
                   onChange={(e) => setNewTaskDueDate(e.target.value)}
                   className="w-full input px-4 py-3 text-sm focus:outline-none transition-all dark:text-slate-100"
                 />
