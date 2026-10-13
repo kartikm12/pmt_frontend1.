@@ -253,6 +253,20 @@ function toApiTaskPriority(priority: TaskPriority) {
   }
 }
 
+type PeriodNumbers = { completed: number; created: number; onTimeRate: number | null };
+export type ReportData = {
+  summary: { days: number; current: PeriodNumbers; previous: PeriodNumbers; overdueNow: number; overdueProjects: number };
+  trends: { name: string; completed: number; new: number }[];
+  statusData: { name: string; value: number }[];
+  projectProgress: {
+    id: string; name: string; dueDate: string | null; completed: number; pending: number; total: number;
+    overdue: number; estimatedHours: number; loggedHours: number;
+    health: "on_track" | "at_risk" | "overdue"; healthReason: string;
+  }[];
+  overdueTasks: { id: string; title: string; dueDate?: string; daysLate: number; priority: string; project?: { id: string; name: string }; assignees: { fullName: string; avatarUrl?: string | null }[] }[];
+  workloadDistribution: { id: string; name: string; avatarUrl?: string | null; taskCount: number; overdue: number }[];
+};
+
 export function mapProject(raw: RawProject): Project {
   return {
     id: raw.id,
@@ -564,21 +578,7 @@ export const api = {
     if (filters.memberId) params.append("memberId", filters.memberId);
     
     const query = params.toString() ? `?${params.toString()}` : "";
-    return request<{
-      kpis: {
-        activeProjects: number;
-        completedTasks: number;
-        pendingTasks: number;
-        overdueTasks: number;
-      };
-      trends: { name: string; completed: number; new: number }[];
-      statusData: { name: string; value: number }[];
-      projectProgress: { name: string; completed: number; pending: number; total: number }[];
-      overdueTasks: (RawTask & { assignees: RawUser[] })[];
-      teamPerformance: { user: RawUser; completed: number; inProgress: number; total: number }[];
-      workloadDistribution: { name: string; taskCount: number }[];
-      recentActivity: RawActivity[];
-    }>(`/stats/reports${query}`);
+    return request<ReportData>(`/stats/reports${query}`);
   },
 
   async getDashboardStats() {

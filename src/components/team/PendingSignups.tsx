@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import type { User } from "@/lib/api-types";
 import { Avatar } from "@/components/ui/Avatar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 
 type Pending = Awaited<ReturnType<typeof api.getPendingSignups>>[number];
 
@@ -72,14 +73,14 @@ export function PendingSignups({ roleOptions, onApproved }: { roleOptions: User[
               <p className="font-bold text-slate-900 dark:text-white">{p.fullName}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">{p.email} · signed up {formatDistanceToNow(new Date(p.createdAt), { addSuffix: true })}</p>
             </div>
-            <select
-              value={roles[p.id] ?? "Team Member"}
-              onChange={(e) => setRoles({ ...roles, [p.id]: e.target.value as User["role"] })}
-              aria-label={`Role for ${p.fullName}`}
-              className="input px-3 py-2 text-sm font-semibold dark:text-slate-100"
-            >
-              {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
+            <div className="w-48">
+              <SingleSelectDropdown
+                ariaLabel={`Role for ${p.fullName}`}
+                options={roleOptions.map((r) => ({ id: r, name: r }))}
+                selectedId={roles[p.id] ?? "Team Member"}
+                onChange={(r) => setRoles({ ...roles, [p.id]: r as User["role"] })}
+              />
+            </div>
             <button onClick={() => void approve(p)} disabled={busyId === p.id} className="btn-primary px-4 py-2 text-sm font-bold disabled:opacity-50" aria-label={`Approve ${p.fullName}`}>
               Approve
             </button>

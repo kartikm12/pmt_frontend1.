@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LabelChip } from "@/components/ui/LabelChip";
 import { emptyPlanning, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
 import { downloadCsv } from "@/lib/csv";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { PageLoader } from "@/components/ui/PageLoader";
 
 const STATUSES: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
@@ -52,6 +53,7 @@ export function Tasks() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const wide = useMediaQuery("(min-width: 768px)");
 
   // Close the row menu on any outside click (its own buttons stop propagation)
   useEffect(() => {
@@ -317,11 +319,11 @@ export function Tasks() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 card p-6">
-        <div className="flex items-center justify-between lg:justify-start gap-4">
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-4 card p-4 sm:p-6">
+        <div className="flex items-center justify-between xl:justify-start gap-4">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap">Tasks</h1>
           {canCreate && (
-            <button onClick={() => openModal()} className="lg:hidden flex items-center gap-2 btn-primary px-3 py-1.5 text-xs whitespace-nowrap shrink-0">
+            <button onClick={() => openModal()} className="xl:hidden flex items-center gap-2 btn-primary px-3 py-1.5 text-xs whitespace-nowrap shrink-0">
               <Plus className="w-3.5 h-3.5" />
               New Task
             </button>
@@ -337,9 +339,9 @@ export function Tasks() {
             Search
           </button>
 
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-[160px]">
-              <SingleSelectDropdown 
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+            <div className="relative min-w-0 sm:min-w-[160px]">
+              <SingleSelectDropdown ariaLabel="Status" 
                 options={[
                   { id: "All", name: "All Statuses" },
                   { id: "Pending", name: "Pending" },
@@ -359,8 +361,8 @@ export function Tasks() {
               />
             </div>
 
-            <div className="relative min-w-[160px]">
-              <SingleSelectDropdown 
+            <div className="relative min-w-0 sm:min-w-[160px]">
+              <SingleSelectDropdown ariaLabel="Priority" 
                 options={[
                   { id: "All", name: "All Priorities" },
                   { id: "Urgent", name: "Urgent" },
@@ -378,7 +380,7 @@ export function Tasks() {
         </div>
 
         {canCreate && (
-          <button onClick={() => openModal()} className="hidden lg:flex items-center gap-2 btn-primary px-4 py-2 whitespace-nowrap shrink-0">
+          <button onClick={() => openModal()} className="hidden xl:flex items-center gap-2 btn-primary px-4 py-2 whitespace-nowrap shrink-0">
             <Plus className="w-4 h-4" />
             New Task
           </button>
@@ -394,7 +396,7 @@ export function Tasks() {
           My tasks
         </button>
         <div className="min-w-[180px]">
-          <SingleSelectDropdown
+          <SingleSelectDropdown ariaLabel="Project"
             options={[{ id: "All", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]}
             selectedId={projectFilter}
             onChange={setProjectFilter}
@@ -403,7 +405,7 @@ export function Tasks() {
           />
         </div>
         <div className="min-w-[180px]">
-          <SingleSelectDropdown
+          <SingleSelectDropdown ariaLabel="Person"
             options={[{ id: "All", name: "Everyone" }, ...users.map((u) => ({ id: u.id, name: u.name }))]}
             selectedId={personFilter}
             onChange={setPersonFilter}
@@ -413,7 +415,7 @@ export function Tasks() {
         </div>
         {allLabels.length > 0 && (
           <div className="min-w-[160px]">
-            <SingleSelectDropdown
+            <SingleSelectDropdown ariaLabel="Label"
               options={[{ id: "All", name: "All labels" }, ...allLabels.map((l) => ({ id: l, name: l }))]}
               selectedId={labelFilter}
               onChange={setLabelFilter}
@@ -431,26 +433,27 @@ export function Tasks() {
       {visibleSelected.length > 0 && (
         <div role="toolbar" aria-label="Bulk actions" className="sticky top-2 z-20 flex flex-wrap items-center gap-3 card px-5 py-3 border-indigo-200 dark:border-indigo-900">
           <span className="text-sm font-bold text-slate-900 dark:text-white">{visibleSelected.length} selected</span>
-          <select
-            value=""
-            disabled={bulkBusy}
-            onChange={(e) => e.target.value && void bulkStatus(e.target.value as TaskStatus)}
-            aria-label="Set status of selected tasks"
-            className="input px-3 py-2 text-sm font-semibold dark:text-slate-100"
-          >
-            <option value="">Set status…</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select
-            value=""
-            disabled={bulkBusy}
-            onChange={(e) => e.target.value && void bulkAssign(e.target.value)}
-            aria-label="Assign selected tasks to"
-            className="input px-3 py-2 text-sm font-semibold dark:text-slate-100"
-          >
-            <option value="">Assign to…</option>
-            {users.filter((u) => u.status !== "Suspended").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          {/* Act-on-pick menus: the choice runs at once and the menu goes back to its prompt */}
+          <div className="w-40">
+            <SingleSelectDropdown
+              ariaLabel="Set status of selected tasks"
+              placeholder="Set status…"
+              options={STATUSES.map((s) => ({ id: s, name: s }))}
+              selectedId=""
+              disabled={bulkBusy}
+              onChange={(s) => s && void bulkStatus(s as TaskStatus)}
+            />
+          </div>
+          <div className="w-48">
+            <SingleSelectDropdown
+              ariaLabel="Assign selected tasks to"
+              placeholder="Assign to…"
+              options={users.filter((u) => u.status !== "Suspended").map((u) => ({ id: u.id, name: u.name }))}
+              selectedId=""
+              disabled={bulkBusy}
+              onChange={(id) => id && void bulkAssign(id)}
+            />
+          </div>
           <button
             onClick={() => setConfirmBulkDelete(true)}
             disabled={bulkBusy}
@@ -474,6 +477,39 @@ export function Tasks() {
             </div>
             <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">No tasks found</h3>
           </div>
+        ) : !wide ? (
+          // Phones: one card per task (the table needs ~900px); actions live on the task page
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            {filteredTasks.map((task) => {
+              const late = task.status !== "Completed" && isOverdue(task.dueDate);
+              return (
+                <li key={task.id} className={`flex items-start gap-3 px-4 py-4 ${selected.has(task.id) ? "bg-indigo-50/60 dark:bg-indigo-900/20" : ""}`} data-task-card={task.title}>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(task.id)}
+                    onChange={() => toggleRow(task.id)}
+                    aria-label={`Select ${task.title}`}
+                    className="w-5 h-5 mt-0.5 accent-indigo-600 shrink-0"
+                  />
+                  <button onClick={() => navigate(`/tasks/${task.id}`)} className="flex-1 min-w-0 text-left">
+                    <span className={`block font-semibold break-words ${task.status === "Completed" ? "text-emerald-600 dark:text-emerald-400" : late ? "text-red-600 dark:text-red-400" : "text-zinc-900 dark:text-zinc-100"}`}>{task.title}</span>
+                    <span className="block text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      {task.project?.name || projects.find((p) => p.id === task.projectId)?.name} · {task.status} · {task.priority}
+                    </span>
+                    <span className={`flex items-center gap-1 text-xs mt-1 ${late ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>
+                      <Clock className="w-3.5 h-3.5" /> {safeFormat(task.dueDate, "MMM d, yyyy")}
+                    </span>
+                    {(task.labels.length > 0 || !!task.subtaskTotal) && (
+                      <span className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {task.labels.map((l) => <LabelChip key={l} label={l} />)}
+                        {!!task.subtaskTotal && <span className="text-[10px] font-bold text-slate-500">☑ {task.subtaskDone}/{task.subtaskTotal}</span>}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">

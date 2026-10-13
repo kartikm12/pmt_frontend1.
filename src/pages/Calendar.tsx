@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 
 const STATUS_DOT: Record<string, string> = {
   "To Do": "bg-slate-400",
@@ -123,6 +124,9 @@ export function Calendar() {
   };
 
   const todayKey = format(new Date(), "yyyy-MM-dd");
+  // Phones get an agenda (days with something due); the 7-column grid needs ~720px
+  const wide = useMediaQuery("(min-width: 640px)");
+  const agendaDays = days.filter((d) => isSameMonth(d, month)).map((d) => format(d, "yyyy-MM-dd")).filter((k) => (byDay.get(k)?.length ?? 0) + (milestonesByDay.get(k)?.length ?? 0) > 0);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -147,15 +151,48 @@ export function Calendar() {
             My tasks
           </button>
           <div className="min-w-[180px]">
-            <SingleSelectDropdown options={[{ id: "All", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]} selectedId={projectFilter} onChange={setProjectFilter} Icon={FolderKanban} variant="default" />
+            <SingleSelectDropdown ariaLabel="Project" options={[{ id: "All", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]} selectedId={projectFilter} onChange={setProjectFilter} Icon={FolderKanban} variant="default" />
           </div>
           <div className="min-w-[180px]">
-            <SingleSelectDropdown options={[{ id: "All", name: "Everyone" }, ...users.map((u) => ({ id: u.id, name: u.name }))]} selectedId={personFilter} onChange={setPersonFilter} Icon={UserIcon} variant="default" />
+            <SingleSelectDropdown ariaLabel="Person" options={[{ id: "All", name: "Everyone" }, ...users.map((u) => ({ id: u.id, name: u.name }))]} selectedId={personFilter} onChange={setPersonFilter} Icon={UserIcon} variant="default" />
           </div>
         </div>
       </div>
 
-      {isLoading ? <div className="card"><PageLoader /></div> : (
+      {isLoading ? <div className="card"><PageLoader /></div> : !wide ? (
+        <div className="card overflow-hidden" aria-label="Agenda">
+          {!agendaDays.length ? (
+            <p className="p-8 text-center text-sm text-slate-500">Nothing due in {format(month, "MMMM")}.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {agendaDays.map((key) => (
+                <li key={key} className="px-4 py-3" data-agenda-day={key}>
+                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${key === todayKey ? "text-indigo-600" : "text-slate-500 dark:text-slate-400"}`}>
+                    {format(new Date(key + "T00:00:00"), "EEE, MMM d")}{key === todayKey ? " · Today" : ""}
+                  </p>
+                  <div className="space-y-1.5">
+                    {(milestonesByDay.get(key) ?? []).map((m) => (
+                      <button key={m.id} onClick={() => navigate(`/projects/${m.projectId}`)} className="w-full flex items-center gap-2 text-left text-sm font-bold text-amber-700 dark:text-amber-400">
+                        <span className="w-2 h-2 rotate-45 bg-amber-500 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{m.name}</span>
+                        <span className="text-xs font-normal text-slate-400 truncate">· {m.projectName}</span>
+                      </button>
+                    ))}
+                    {(byDay.get(key) ?? []).map((t) => (
+                      <button key={t.id} onClick={() => navigate(`/tasks/${t.id}`)} data-task={t.title} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-left">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[t.status] ?? "bg-slate-400"}`} aria-hidden="true" />
+                        <span className={`flex-1 min-w-0 truncate text-sm font-semibold ${t.status === "Completed" ? "line-through text-slate-400" : "text-slate-800 dark:text-slate-100"}`}>{t.title}</span>
+                        <span className="text-xs text-slate-400 shrink-0">{t.status}</span>
+                      </button>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">To move a deadline, open the task and edit it.</p>
+        </div>
+      ) : (
       <div className="card p-2 sm:p-4 overflow-x-auto">
         <div className="min-w-[720px]">
           <div className="grid grid-cols-7 mb-1">

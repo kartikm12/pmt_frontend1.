@@ -20,6 +20,7 @@ import { MilestonesBar } from "@/components/project/MilestonesBar";
 import { ProjectTimeline } from "@/components/project/ProjectTimeline";
 import { ProjectActivity } from "@/components/project/ProjectActivity";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 
 const COLUMNS: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 const TABS = [
@@ -424,7 +425,7 @@ export function ProjectDetails() {
           </div>
           <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium text-lg max-w-2xl leading-relaxed">{project.description}</p>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-6">
           <div className="flex -space-x-4">
             {project.teamMemberIds.map((memberId) => {
               const user = userMap.get(memberId);
@@ -435,18 +436,18 @@ export function ProjectDetails() {
           </div>
           {canManage && (
             <>
-              <button onClick={() => setIsEditingProject(true)} className="btn-secondary px-4 py-2.5 flex items-center gap-2 text-sm font-bold">
+              <button onClick={() => setIsEditingProject(true)} className="btn-secondary px-4 py-2.5 flex items-center gap-2 text-sm font-bold whitespace-nowrap">
                 <Edit2 className="w-4 h-4" />
-                Edit Project
+                Edit<span className="hidden sm:inline"> Project</span>
               </button>
               <button
                 onClick={() => setConfirmProjectDelete(true)}
-                className="px-4 py-2.5 flex items-center gap-2 text-sm font-bold rounded-xl border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                className="px-4 py-2.5 flex items-center gap-2 text-sm font-bold whitespace-nowrap rounded-xl border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
               </button>
-              <button onClick={() => openModal("To Do")} className="btn-primary flex items-center gap-2">
+              <button onClick={() => openModal("To Do")} className="btn-primary flex items-center gap-2 whitespace-nowrap">
                 <Plus className="w-5 h-5" />
                 New Task
               </button>
@@ -687,14 +688,14 @@ export function ProjectDetails() {
                       </td>
                       <td className="px-8 py-6 whitespace-nowrap">
                         {roleEditable ? (
-                          <select
-                            value={memberRole}
-                            onChange={(e) => void changeMemberRole(user.id, e.target.value as MembershipRole)}
-                            aria-label={`Project role for ${user.name}`}
-                            className="input px-3 py-2 text-sm font-bold dark:text-slate-100"
-                          >
-                            {(["MANAGER", "CONTRIBUTOR", "VIEWER"] as MembershipRole[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-                          </select>
+                          <div className="w-44">
+                            <SingleSelectDropdown
+                              ariaLabel={`Project role for ${user.name}`}
+                              options={(["MANAGER", "CONTRIBUTOR", "VIEWER"] as MembershipRole[]).map((r) => ({ id: r, name: ROLE_LABEL[r] }))}
+                              selectedId={memberRole}
+                              onChange={(r) => void changeMemberRole(user.id, r as MembershipRole)}
+                            />
+                          </div>
                         ) : (
                           <span className="text-sm font-bold text-slate-700 dark:text-slate-300" data-role={user.name}>{ROLE_LABEL[memberRole]}</span>
                         )}

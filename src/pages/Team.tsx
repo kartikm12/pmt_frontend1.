@@ -224,7 +224,7 @@ export function Team() {
                     <input required type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full px-4 py-3 input text-sm focus:outline-none transition-all dark:text-slate-100 font-medium" />
                   </Field>
                   <Field label="Role">
-                    <SingleSelectDropdown
+                    <SingleSelectDropdown ariaLabel="Role"
                       options={roleOptions}
                       selectedId={inviteRole}
                       onChange={(id) => setInviteRole(id as User["role"])}
@@ -256,7 +256,7 @@ export function Team() {
                     </div>
                   </Field>
                   <Field label="Assign Project">
-                    <SingleSelectDropdown
+                    <SingleSelectDropdown ariaLabel="Project"
                       options={[
                         { id: "", name: "No Project" },
                         ...allProjects.map(p => ({ id: p.id, name: p.name }))
@@ -304,7 +304,7 @@ export function Team() {
                     <input disabled type="email" value={inviteEmail} className="w-full px-4 py-3 input text-sm opacity-50 cursor-not-allowed dark:text-slate-100 font-medium" />
                   </Field>
                   <Field label="Role">
-                    <SingleSelectDropdown
+                    <SingleSelectDropdown ariaLabel="Role"
                       options={roleOptions}
                       selectedId={inviteRole}
                       onChange={(id) => setInviteRole(id as User["role"])}
@@ -318,7 +318,7 @@ export function Team() {
                     <input type="text" value={inviteTitle} onChange={(e) => setInviteTitle(e.target.value)} className="w-full px-4 py-3 input text-sm focus:outline-none transition-all dark:text-slate-100 font-medium" placeholder="Frontend Developer" />
                   </Field>
                   <Field label="Assign Project">
-                    <SingleSelectDropdown
+                    <SingleSelectDropdown ariaLabel="Project"
                       options={[
                         { id: "", name: "No Project" },
                         ...allProjects.map(p => ({ id: p.id, name: p.name }))
@@ -380,7 +380,7 @@ export function Team() {
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Role:</span>
             <div className="min-w-[160px]">
-              <SingleSelectDropdown
+              <SingleSelectDropdown ariaLabel="Role"
                 options={[
                   { id: "All Roles", name: "All Roles" },
                   ...ROLE_OPTIONS.map((role) => ({ id: role, name: role }))
@@ -401,8 +401,8 @@ export function Team() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
+            <table className="w-full text-left border-collapse max-md:block">
+              <thead className="max-md:hidden">
                 <tr className="border-b border-slate-200 dark:border-slate-800">
                   <th className="px-8 py-5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-left">Name</th>
                   <th className="px-8 py-5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-left">Role</th>
@@ -411,10 +411,10 @@ export function Team() {
                   <th className="px-8 py-5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-8"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 max-md:block">
                 {filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-white/10 dark:hover:bg-slate-800/30 transition-all group">
-                    <td className="px-8 py-5 whitespace-nowrap">
+                  <tr key={user.id} data-member-row={user.email} className="hover:bg-white/10 dark:hover:bg-slate-800/30 transition-all group max-md:relative max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:px-4 max-md:py-4">
+                    <td className="px-8 py-5 whitespace-nowrap max-md:w-full max-md:p-0 max-md:pr-12">
                       <div className="flex items-center gap-4">
                         <Avatar name={user.name} src={user.avatar} className="w-12 h-12 rounded-2xl border-2 border-white dark:border-slate-800 shadow-sm object-cover" />
                         <div>
@@ -430,12 +430,12 @@ export function Team() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5 whitespace-nowrap text-left">
-                      <span className="inline-flex items-center justify-center min-w-[120px] px-4 h-7 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/20 shadow-sm">
+                    <td className="px-8 py-5 whitespace-nowrap text-left max-md:p-0">
+                      <span className="inline-flex items-center justify-center min-w-[120px] max-md:min-w-0 px-4 h-7 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/20 shadow-sm">
                         {user.role}
                       </span>
                     </td>
-                    <td className="px-8 py-5 whitespace-nowrap">
+                    <td className="px-8 py-5 whitespace-nowrap max-md:p-0 max-md:w-full max-md:whitespace-normal max-md:break-all">
                       <div className="flex items-center gap-3 text-sm font-semibold text-slate-600 dark:text-slate-400">
                         <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700">
                           <Mail className="w-4 h-4 text-slate-400 dark:text-slate-500" />
@@ -443,7 +443,7 @@ export function Team() {
                         {user.email}
                       </div>
                     </td>
-                    <td className="px-8 py-5 whitespace-nowrap">
+                    <td className="px-8 py-5 whitespace-nowrap max-md:p-0 max-md:w-full max-md:whitespace-normal">
                       <div className="flex flex-wrap gap-2">
                         {user.projects.length > 0 ? (
                           user.projects.map((project) => (
@@ -458,7 +458,7 @@ export function Team() {
                       </div>
                     </td>
                     {isManager(currentUser?.role) && (
-                      <td className="px-8 py-5 whitespace-nowrap text-right relative">
+                      <td className="px-8 py-5 whitespace-nowrap text-right relative max-md:absolute max-md:top-3 max-md:right-2 max-md:p-0">
                         {canManage(user) && (
                         <button
                           onClick={(e) => {

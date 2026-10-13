@@ -97,7 +97,7 @@ export function Dashboard() {
       </div>
 
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           <StatCard 
             title="Total Projects" 
             value={stats?.totalProjects.toString() ?? "0"} 
@@ -124,7 +124,7 @@ export function Dashboard() {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           <StatCard 
             title="Total Tasks" 
             value={stats?.totalTasks.toString() ?? "0"} 
@@ -277,9 +277,9 @@ function StatCard({
   onIconClick?: () => void;
 }) {
   return (
-    <div className="card p-6 group">
+    <div className="card p-4 sm:p-6 group">
       <div className="flex items-center justify-between relative z-10">
-        <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 tracking-wider uppercase">{title}</p>
+        <p className="text-[11px] sm:text-xs font-semibold text-zinc-500 dark:text-zinc-400 tracking-wider uppercase leading-snug">{title}</p>
         <button 
           onClick={onIconClick}
           className={`p-2 rounded-lg transition-all hover:scale-110 active:scale-95 ${
@@ -293,7 +293,7 @@ function StatCard({
         </button>
       </div>
       <div className="mt-4 relative z-10">
-        <h3 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">{value}</h3>
+        <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">{value}</h3>
         {trend && <p className={`text-xs mt-1 font-medium ${alert ? "text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}>{trend}</p>}
       </div>
     </div>

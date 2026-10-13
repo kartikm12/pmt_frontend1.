@@ -279,7 +279,7 @@ export function Projects() {
           </button>
         </div>
         <div className="relative min-w-[200px]">
-          <SingleSelectDropdown
+          <SingleSelectDropdown ariaLabel="Status"
             options={[
               { id: "All", name: "All Statuses" },
               { id: "Pending", name: "Pending (Planning & On Hold)" },
@@ -527,7 +527,7 @@ function ProjectModal(props: {
           {props.setStatus && props.status && (
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Status</label>
-              <SingleSelectDropdown
+              <SingleSelectDropdown ariaLabel="Status"
                 options={[
                   { id: "Planning", name: "Planning" },
                   { id: "Active", name: "Active" },
@@ -558,7 +558,7 @@ function ProjectModal(props: {
           {props.setCopyFromId && props.copyOptions && props.copyOptions.length > 0 && (
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Copy tasks from (optional)</label>
-              <SingleSelectDropdown
+              <SingleSelectDropdown ariaLabel="Copy tasks from"
                 options={[{ id: "", name: "Start empty" }, ...props.copyOptions.map((p) => ({ id: p.id, name: p.name }))]}
                 selectedId={props.copyFromId ?? ""}
                 onChange={(id) => props.setCopyFromId?.(id)}

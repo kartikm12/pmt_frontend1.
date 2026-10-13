@@ -167,7 +167,7 @@ export function AddTaskModal({
   const statusField = (
     <div className="space-y-1">
       <label htmlFor="task-status" className={label}>Status</label>
-      <SingleSelectDropdown
+      <SingleSelectDropdown ariaLabel="Status"
         options={[
           { id: "To Do", name: "To Do" },
           { id: "In Progress", name: "In Progress" },
@@ -229,8 +229,8 @@ export function AddTaskModal({
               {statusField}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] flex-1 min-h-0 overflow-y-auto">
-              <div className="p-5 space-y-4 md:border-r border-slate-100 dark:border-slate-800">
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] md:grid-rows-[auto_1fr] flex-1 min-h-0 overflow-y-auto">
+              <div className="p-5 space-y-4 md:border-r border-slate-100 dark:border-slate-800 md:col-start-1 md:row-start-1">
                 <div className="space-y-1">
                   <label htmlFor="task-title" className="sr-only">Title</label>
                   <input
@@ -257,74 +257,9 @@ export function AddTaskModal({
                   />
                 </div>
 
-                {planning && setPlanning && (
-                  <details open className="group rounded-xl border border-slate-200 dark:border-slate-800">
-                    <summary className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer select-none list-none">
-                      <span className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-                        <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-0 -rotate-90" />
-                        Planning
-                      </span>
-                      <span className="text-xs text-slate-400 truncate">{planningSummary || "Optional"}</span>
-                    </summary>
-                    <div className="px-3 pb-3 space-y-3">
-                      <div className="space-y-1">
-                        <label className={label}>Labels</label>
-                        <LabelInput labels={planning.labels} onChange={(labels) => setPlanning({ ...planning, labels })} />
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label htmlFor="task-estimate" className={label}>Estimate (hours)</label>
-                          <input
-                            id="task-estimate"
-                            type="number"
-                            min={0}
-                            max={1000}
-                            step={0.5}
-                            value={planning.estimateHours}
-                            onChange={(e) => setPlanning({ ...planning, estimateHours: e.target.value })}
-                            placeholder="4"
-                            className="w-full input px-3 py-2.5 text-sm dark:text-slate-100"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className={label}>Milestone</label>
-                          <SingleSelectDropdown
-                            options={[{ id: "", name: "No milestone" }, ...milestones.map((m) => ({ id: m.id, name: m.name }))]}
-                            selectedId={planning.milestoneId}
-                            onChange={(id) => setPlanning({ ...planning, milestoneId: id })}
-                            disabled={!newTaskProjectId}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className={label}>Repeat</label>
-                          <SingleSelectDropdown
-                            options={[
-                              { id: "", name: "Doesn't repeat" },
-                              { id: "DAILY", name: "Every day" },
-                              { id: "WEEKLY", name: "Every week" },
-                              { id: "MONTHLY", name: "Every month" }
-                            ]}
-                            selectedId={planning.recurrence}
-                            onChange={(id) => setPlanning({ ...planning, recurrence: id as PlanningState["recurrence"] })}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className={label}>Blocked by</label>
-                        <MultiSelectDropdown
-                          options={projectTasks.filter((t) => t.id !== taskToEdit?.id).map((t) => ({ id: t.id, name: t.title }))}
-                          selectedIds={planning.blockedByIds}
-                          onChange={(ids) => setPlanning({ ...planning, blockedByIds: ids })}
-                          placeholder="Tasks that must finish first..."
-                          disabled={!newTaskProjectId}
-                        />
-                      </div>
-                    </div>
-                  </details>
-                )}
               </div>
 
-              <div className="p-5 space-y-4 bg-slate-50/70 dark:bg-slate-900/40">
+              <div className="p-5 space-y-4 bg-slate-50/70 dark:bg-slate-900/40 md:col-start-2 md:row-start-1 md:row-span-2">
                 {statusField}
                 <div className="space-y-1">
                   <span id="task-priority-label" className={label}>Priority</span>
@@ -389,7 +324,7 @@ export function AddTaskModal({
                 {newTaskProjectId !== undefined && setNewTaskProjectId && projects && (
                   <div className="space-y-1">
                     <label htmlFor="task-project" className={label}>Project</label>
-                    <SingleSelectDropdown
+                    <SingleSelectDropdown ariaLabel="Project"
                       options={projects.map(p => ({ id: p.id, name: p.name }))}
                       selectedId={newTaskProjectId || ""}
                       onChange={setNewTaskProjectId}
@@ -398,6 +333,73 @@ export function AddTaskModal({
                   </div>
                 )}
               </div>
+              {planning && setPlanning && (
+              <div className="px-5 pb-5 pt-5 md:pt-0 md:border-r border-slate-100 dark:border-slate-800 md:col-start-1 md:row-start-2">
+                <details open className="group rounded-xl border border-slate-200 dark:border-slate-800">
+                    <summary className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer select-none list-none">
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+                        <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-0 -rotate-90" />
+                        Planning
+                      </span>
+                      <span className="text-xs text-slate-400 truncate">{planningSummary || "Optional"}</span>
+                    </summary>
+                    <div className="px-3 pb-3 space-y-3">
+                      <div className="space-y-1">
+                        <label className={label}>Labels</label>
+                        <LabelInput labels={planning.labels} onChange={(labels) => setPlanning({ ...planning, labels })} />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label htmlFor="task-estimate" className={label}>Estimate (hours)</label>
+                          <input
+                            id="task-estimate"
+                            type="number"
+                            min={0}
+                            max={1000}
+                            step={0.5}
+                            value={planning.estimateHours}
+                            onChange={(e) => setPlanning({ ...planning, estimateHours: e.target.value })}
+                            placeholder="4"
+                            className="w-full input px-3 py-2.5 text-sm dark:text-slate-100"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className={label}>Milestone</label>
+                          <SingleSelectDropdown ariaLabel="Milestone"
+                            options={[{ id: "", name: "No milestone" }, ...milestones.map((m) => ({ id: m.id, name: m.name }))]}
+                            selectedId={planning.milestoneId}
+                            onChange={(id) => setPlanning({ ...planning, milestoneId: id })}
+                            disabled={!newTaskProjectId}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className={label}>Repeat</label>
+                          <SingleSelectDropdown ariaLabel="Repeat"
+                            options={[
+                              { id: "", name: "Doesn't repeat" },
+                              { id: "DAILY", name: "Every day" },
+                              { id: "WEEKLY", name: "Every week" },
+                              { id: "MONTHLY", name: "Every month" }
+                            ]}
+                            selectedId={planning.recurrence}
+                            onChange={(id) => setPlanning({ ...planning, recurrence: id as PlanningState["recurrence"] })}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className={label}>Blocked by</label>
+                        <MultiSelectDropdown
+                          options={projectTasks.filter((t) => t.id !== taskToEdit?.id).map((t) => ({ id: t.id, name: t.title }))}
+                          selectedIds={planning.blockedByIds}
+                          onChange={(ids) => setPlanning({ ...planning, blockedByIds: ids })}
+                          placeholder="Tasks that must finish first..."
+                          disabled={!newTaskProjectId}
+                        />
+                      </div>
+                    </div>
+                  </details>
+              </div>
+              )}
             </div>
           )}
 

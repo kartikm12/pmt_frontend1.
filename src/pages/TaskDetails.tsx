@@ -36,6 +36,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 
 export function TaskDetails() {
   const { id } = useParams();
@@ -459,15 +460,14 @@ export function TaskDetails() {
           </h1>
           <div className="flex flex-wrap items-center gap-2 mt-3">
             {canContribute ? (
-              <select
-                value={task.status}
+              <SingleSelectDropdown
+                variant="pill"
+                ariaLabel="Status"
+                options={STATUSES.map((st) => ({ id: st, name: st }))}
+                selectedId={task.status}
                 disabled={statusBusy}
-                onChange={(e) => changeStatus(e.target.value as TaskStatus)}
-                aria-label="Status"
-                className="pl-3 pr-8 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-60"
-              >
-                {STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
-              </select>
+                onChange={(st) => changeStatus(st as TaskStatus)}
+              />
             ) : (
               <span className="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200" aria-label="Status">{task.status}</span>
             )}
@@ -567,7 +567,7 @@ export function TaskDetails() {
             onChange={(subtasks) => setTask((prev) => prev && { ...prev, subtasks })}
           />
 
-          <div role="tablist" className="flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
+          <div role="tablist" className="flex gap-1 border-b border-slate-200 dark:border-slate-800 overflow-x-auto whitespace-nowrap">
             {([
               ["comments", `Comments ${task.comments?.length ?? 0}`],
               ["activity", "Activity"],
@@ -588,7 +588,7 @@ export function TaskDetails() {
 
           {(tab === "comments" || tab === "activity") && (
             <div className="card p-5 space-y-6">
-              {canContribute && tab === "comments" && <form onSubmit={handlePostComment} className="flex gap-4 mb-8">
+              {canContribute && tab === "comments" && <form onSubmit={handlePostComment} className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8">
                 <div className="flex-1 relative">
                   {showSuggestions && filteredSuggestions.length > 0 && (
                     <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-2 duration-200">
@@ -632,7 +632,7 @@ export function TaskDetails() {
                 <button
                   type="submit"
                   disabled={isSubmitting || !newComment.trim()}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold transition-all h-fit self-end"
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold transition-all h-fit self-end w-full sm:w-auto"
                 >
                   Post
                 </button>

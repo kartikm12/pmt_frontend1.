@@ -113,7 +113,7 @@ export function Leaderboard() {
             ))}
           </div>
           <div className="min-w-[190px]">
-            <SingleSelectDropdown
+            <SingleSelectDropdown ariaLabel="Project"
               options={[{ id: "", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]}
               selectedId={projectId}
               onChange={setProjectId}
