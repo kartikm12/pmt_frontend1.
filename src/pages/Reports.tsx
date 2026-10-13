@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Filter, RefreshCw } from "lucide-react";
+import { Download, Filter, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Project, User } from "@/lib/api-types";
 
@@ -15,6 +15,8 @@ import { GanttTimeline } from "@/components/reports/GanttTimeline";
 import { KPIOverview } from "@/components/reports/KPIOverview";
 import { ActivityTimeline } from "@/components/reports/ActivityTimeline";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
+import { EffortTable } from "@/components/reports/EffortTable";
+import { downloadCsv } from "@/lib/csv";
 
 const MANAGER_ROLES = ["Admin", "Manager", "Project Manager"];
 
@@ -77,6 +79,17 @@ export function Reports() {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Reports & Analytics</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">Comprehensive insights into project health and team productivity.</p>
         </div>
+        <button
+          onClick={() => reportData && downloadCsv(`project-report-${new Date().toLocaleDateString("en-CA")}.csv`, [
+            ["Project", "Tasks", "Completed", "Pending", "Hours estimated", "Hours logged"],
+            ...reportData.projectProgress.map((r: any) => [r.name, r.total, r.completed, r.pending, r.estimatedHours ?? 0, r.loggedHours ?? 0])
+          ])}
+          disabled={!reportData?.projectProgress?.length}
+          className="btn-secondary px-4 py-2 text-sm font-bold flex items-center gap-2 disabled:opacity-50"
+        >
+          <Download className="w-4 h-4" />
+          Export CSV
+        </button>
       </div>
 
       {/* Dynamic Filters */}
@@ -144,6 +157,10 @@ export function Reports() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 break-inside-avoid">
             <ProjectProgressChart data={reportData.projectProgress} />
             <TaskStatusChart data={reportData.statusData} />
+          </div>
+
+          <div className="break-inside-avoid">
+            <EffortTable data={reportData.projectProgress} />
           </div>
 
           {/* Workload Distribution */}

@@ -7,7 +7,14 @@ import type {
   TaskPriority,
   TaskStatus,
   User,
-  Attachment
+  Attachment,
+  MembershipRole,
+  Milestone,
+  ProjectRole,
+  Recurrence,
+  Subtask,
+  TaskLink,
+  TimeEntry
 } from "./api-types";
 
 const getApiBaseUrl = () => {
@@ -53,8 +60,10 @@ export type RawProject = {
   startDate?: string | null;
   dueDate?: string | null;
   status: "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
-  members?: Array<{ userId: string; user?: RawUser }>;
+  members?: Array<{ userId: string; role?: MembershipRole; user?: RawUser }>;
   manager?: RawUser;
+  myRole?: ProjectRole;
+  milestones?: Milestone[];
 };
 
 export type RawTask = {
@@ -67,6 +76,7 @@ export type RawTask = {
   status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
   project?: RawProject;
   assignees?: RawUser[];
+  watchers?: RawUser[];
   comments?: Array<{
     id: string;
     userId: string;
@@ -75,6 +85,20 @@ export type RawTask = {
     updatedAt?: string;
     user?: RawUser;
   }>;
+  labels?: string[];
+  estimateHours?: number | null;
+  startDate?: string | null;
+  recurrence?: Recurrence | null;
+  milestoneId?: string | null;
+  milestone?: Milestone | null;
+  subtaskTotal?: number;
+  subtaskDone?: number;
+  subtasks?: Subtask[];
+  blockedBy?: TaskLink[];
+  blocks?: TaskLink[];
+  timeEntries?: TimeEntry[];
+  myRole?: ProjectRole | null;
+  createdAt?: string;
 };
 
 type RawActivity = {
@@ -234,7 +258,10 @@ export function mapProject(raw: RawProject): Project {
     startDate: raw.startDate ?? new Date().toISOString(),
     dueDate: raw.dueDate ?? new Date().toISOString(),
     teamMemberIds: raw.members?.map((member) => member.userId) ?? [],
-    status: mapProjectStatus(raw.status)
+    status: mapProjectStatus(raw.status),
+    myRole: raw.myRole,
+    milestones: raw.milestones,
+    memberRoles: Object.fromEntries((raw.members ?? []).filter((m) => m.role).map((m) => [m.userId, m.role!]))
   };
 }
 
@@ -260,7 +287,22 @@ export function mapTask(raw: RawTask): Task {
         user: comment.user ? mapUser(comment.user) : undefined
       })
     ),
-    attachments: (raw as any).attachments || []
+    attachments: (raw as any).attachments || [],
+    labels: raw.labels ?? [],
+    estimateHours: raw.estimateHours ?? null,
+    startDate: raw.startDate ?? null,
+    recurrence: raw.recurrence ?? null,
+    milestoneId: raw.milestoneId ?? null,
+    milestone: raw.milestone ?? null,
+    subtaskTotal: raw.subtaskTotal ?? raw.subtasks?.length ?? 0,
+    subtaskDone: raw.subtaskDone ?? raw.subtasks?.filter((s) => s.done).length ?? 0,
+    subtasks: raw.subtasks,
+    blockedBy: raw.blockedBy ?? [],
+    blocks: raw.blocks ?? [],
+    watchers: raw.watchers?.map(mapUser),
+    timeEntries: raw.timeEntries,
+    myRole: raw.myRole ?? null,
+    createdAt: raw.createdAt
   };
 }
 
@@ -359,6 +401,27 @@ async function request<T>(path: string, options: RequestInit = {}) {
   }
 
   return data as T;
+}
+
+// Planning fields shared by task create/update; undefined = "leave as is"
+export type PlanningPayload = {
+  labels?: string[];
+  estimateHours?: number | null;
+  startDate?: string | null;
+  recurrence?: Recurrence | null;
+  milestoneId?: string | null;
+  blockedByIds?: string[];
+};
+
+function planningBody(p: PlanningPayload) {
+  return {
+    labels: p.labels,
+    estimateHours: p.estimateHours,
+    startDate: p.startDate === undefined ? undefined : p.startDate ? new Date(p.startDate).toISOString() : null,
+    recurrence: p.recurrence,
+    milestoneId: p.milestoneId,
+    blockedByIds: p.blockedByIds
+  };
 }
 
 export function mapAttachment(raw: any): Attachment {
@@ -519,6 +582,7 @@ export const api = {
     dueDate: string;
     managerId: string;
     memberIds?: string[];
+    copyFromProjectId?: string;
   }) {
     const response = await request<RawProject>("/projects", {
       method: "POST",
@@ -580,7 +644,7 @@ export const api = {
     dueDate: string;
     projectId: string;
     assigneeIds?: string[];
-  }) {
+  } & PlanningPayload) {
     const response = await request<RawTask>("/tasks", {
       method: "POST",
       body: JSON.stringify({
@@ -590,14 +654,15 @@ export const api = {
         status: toApiTaskStatus(payload.status),
         dueDate: payload.dueDate ? new Date(payload.dueDate).toISOString() : undefined,
         projectId: payload.projectId,
-        assigneeIds: payload.assigneeIds || []
+        assigneeIds: payload.assigneeIds || [],
+        ...planningBody(payload)
       })
     });
 
     return mapTask(response);
   },
 
-  async updateTask(taskId: string, payload: Partial<Task>) {
+  async updateTask(taskId: string, payload: Partial<Omit<Task, keyof PlanningPayload>> & PlanningPayload) {
     const response = await request<RawTask>(`/tasks/${taskId}`, {
       method: "PUT",
       body: JSON.stringify({
@@ -607,11 +672,92 @@ export const api = {
         status: payload.status ? toApiTaskStatus(payload.status) : undefined,
         dueDate: payload.dueDate ? new Date(payload.dueDate).toISOString() : undefined,
         projectId: payload.projectId,
-        assigneeIds: payload.assigneeIds
+        assigneeIds: payload.assigneeIds,
+        ...planningBody(payload)
       })
     });
 
     return mapTask(response);
+  },
+
+  // ----- 14 Oct feature pack -----
+  async setMemberRole(projectId: string, userId: string, role: MembershipRole) {
+    return request(`/projects/${projectId}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ role }) });
+  },
+
+  async saveMilestone(projectId: string, milestone: { id?: string; name: string; dueDate?: string | null }) {
+    const body = JSON.stringify({ name: milestone.name, dueDate: milestone.dueDate ? new Date(milestone.dueDate).toISOString() : null });
+    return milestone.id
+      ? request<Milestone>(`/projects/${projectId}/milestones/${milestone.id}`, { method: "PATCH", body })
+      : request<Milestone>(`/projects/${projectId}/milestones`, { method: "POST", body });
+  },
+
+  async deleteMilestone(projectId: string, milestoneId: string) {
+    return request(`/projects/${projectId}/milestones/${milestoneId}`, { method: "DELETE" });
+  },
+
+  async addSubtask(taskId: string, title: string) {
+    return request<Subtask>(`/tasks/${taskId}/subtasks`, { method: "POST", body: JSON.stringify({ title }) });
+  },
+
+  async updateSubtask(subtaskId: string, changes: { title?: string; done?: boolean }) {
+    return request<Subtask>(`/tasks/subtasks/${subtaskId}`, { method: "PATCH", body: JSON.stringify(changes) });
+  },
+
+  async deleteSubtask(subtaskId: string) {
+    return request(`/tasks/subtasks/${subtaskId}`, { method: "DELETE" });
+  },
+
+  async logTime(taskId: string, entry: { minutes: number; note?: string; spentOn?: string }) {
+    return request<TimeEntry>(`/tasks/${taskId}/time`, { method: "POST", body: JSON.stringify(entry) });
+  },
+
+  async deleteTimeEntry(entryId: string) {
+    return request(`/tasks/time/${entryId}`, { method: "DELETE" });
+  },
+
+  async setWatching(taskId: string, watch: boolean) {
+    return request<{ watching: boolean }>(`/tasks/${taskId}/watch`, { method: watch ? "POST" : "DELETE" });
+  },
+
+  async reorderTasks(projectId: string, status: TaskStatus, orderedIds: string[]) {
+    return request(`/tasks/reorder`, { method: "POST", body: JSON.stringify({ projectId, status: toApiTaskStatus(status), orderedIds }) });
+  },
+
+  async getTrash() {
+    return request<{
+      projects: Array<{ id: string; name: string; deletedAt: string; _count: { tasks: number } }>;
+      tasks: Array<{ id: string; title: string; deletedAt: string; project: { id: string; name: string } }>;
+    }>("/projects/trash");
+  },
+
+  async restoreProject(projectId: string) {
+    return request(`/projects/${projectId}/restore`, { method: "POST" });
+  },
+
+  async restoreTask(taskId: string) {
+    return request(`/tasks/${taskId}/restore`, { method: "POST" });
+  },
+
+  async search(q: string) {
+    return request<{
+      tasks: Array<{ id: string; title: string; status: string; project: { id: string; name: string } }>;
+      projects: Array<{ id: string; name: string; status: string }>;
+      people: Array<{ id: string; fullName: string; email: string; title?: string | null; avatarUrl?: string | null }>;
+    }>(`/search?q=${encodeURIComponent(q)}`);
+  },
+
+  async getWorkload() {
+    return request<Array<{
+      userId: string; fullName: string; title?: string | null; avatarUrl?: string | null;
+      openTasks: number; overdueTasks: number; estimatedHours: number; loggedHoursThisWeek: number;
+    }>>("/stats/workload");
+  },
+
+  async getAuditLog(filters: { userId?: string; projectId?: string; action?: string; from?: string; to?: string; skip?: number; limit?: number }) {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v !== undefined && v !== "") params.append(k, String(v));
+    return request<Array<RawActivity & { project?: { id: string; name: string } | null }>>(`/activity?${params.toString()}`);
   },
 
   async deleteTask(taskId: string) {

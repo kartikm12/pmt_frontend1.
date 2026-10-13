@@ -2,10 +2,11 @@ import { Activity, MessageSquare, CheckSquare, Upload, PlusSquare, Edit, AlertCi
 import { formatDistanceToNow, parseISO } from "date-fns";
 
 interface ActivityTimelineProps {
+  subtitle?: string;
   data: any[];
 }
 
-export function ActivityTimeline({ data }: ActivityTimelineProps) {
+export function ActivityTimeline({ data, subtitle = "Latest actions across all projects" }: ActivityTimelineProps) {
   const getIconAndColor = (type: string) => {
     const t = type.toUpperCase();
     if (t.includes("COMMENT")) return { icon: MessageSquare, color: "text-blue-500", bg: "bg-blue-100 dark:bg-blue-900/30", dot: "bg-blue-500" };
@@ -24,7 +25,7 @@ export function ActivityTimeline({ data }: ActivityTimelineProps) {
         </div>
         <div>
           <h3 className="text-xl font-bold text-slate-900 dark:text-white">Recent Activity</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Latest actions across all projects</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
         </div>
       </div>
 

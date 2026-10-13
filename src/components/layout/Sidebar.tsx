@@ -8,8 +8,13 @@ import {
   Settings,
   LogOut,
   X,
-  Trophy
+  Trophy,
+  CalendarDays,
+  Trash2,
+  ShieldCheck
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { isManager } from "@/utils/roleUtils";
 import { cn } from "@/lib/utils";
 import companyLogo from "@/entrolabscropped.png";
 
@@ -17,9 +22,12 @@ const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FolderKanban, label: "Projects", path: "/projects" },
   { icon: CheckSquare, label: "Tasks", path: "/tasks" },
+  { icon: CalendarDays, label: "Calendar", path: "/calendar" },
   { icon: BarChart3, label: "Reports", path: "/reports" },
   { icon: Trophy, label: "Leaderboard", path: "/leaderboard" },
   { icon: Users, label: "Team", path: "/team" },
+  { icon: Trash2, label: "Recently deleted", path: "/trash", managersOnly: true },
+  { icon: ShieldCheck, label: "Audit log", path: "/audit", adminOnly: true },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
@@ -30,6 +38,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onClose, onLogout }: SidebarProps) {
+  const { currentUser } = useAuth();
+  const visibleItems = navItems.filter((item) =>
+    item.adminOnly ? currentUser?.role === "Admin" : item.managersOnly ? isManager(currentUser?.role) : true
+  );
   return (
     <>
       {/* Mobile Backdrop */}
@@ -59,7 +71,7 @@ export function Sidebar({ isOpen, onClose, onLogout }: SidebarProps) {
         </div>
         
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
+          {visibleItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

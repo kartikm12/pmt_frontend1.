@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { Clock, MoreHorizontal, Filter, ArrowUpDown, Search, ClipboardList, Plus, X } from "lucide-react";
+import { Clock, MoreHorizontal, Filter, ArrowUpDown, Search, ClipboardList, Plus, X, Download, FolderKanban, User as UserIcon, Tag, CheckSquare } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -11,6 +10,12 @@ import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { LabelChip } from "@/components/ui/LabelChip";
+import { emptyPlanning, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
+import { downloadCsv } from "@/lib/csv";
+
+const STATUSES: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 
 export function Tasks() {
   const navigate = useNavigate();
@@ -39,6 +44,13 @@ export function Tasks() {
   const [formError, setFormError] = useState("");
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [planning, setPlanning] = useState<PlanningState>(emptyPlanning);
+  const [projectFilter, setProjectFilter] = useState(searchParams.get("project") || "All");
+  const [personFilter, setPersonFilter] = useState(searchParams.get("person") || (searchParams.get("mine") ? currentUser?.id ?? "All" : "All"));
+  const [labelFilter, setLabelFilter] = useState("All");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   // Close the row menu on any outside click (its own buttons stop propagation)
   useEffect(() => {
@@ -110,6 +122,7 @@ export function Tasks() {
       setNewTaskStatus(task.status);
       setNewTaskAssigneeIds(task.assigneeIds || []);
       setNewTaskProjectId(task.projectId);
+      setPlanning(planningFromTask(task));
     } else {
       setEditingTask(null);
       setNewTaskTitle("");
@@ -119,6 +132,7 @@ export function Tasks() {
       setNewTaskStatus("To Do");
       setNewTaskAssigneeIds([]);
       setNewTaskProjectId("");
+      setPlanning(emptyPlanning);
     }
     setFormError("");
     setIsModalOpen(true);
@@ -128,13 +142,14 @@ export function Tasks() {
     if (!editingTask && !newTaskProjectId) return "Please select a project.";
     if (!newTaskTitle.trim() || !newTaskDescription.trim()) return "All task fields are required.";
     if (!newTaskAssigneeIds.length) return "Please assign at least one team member.";
-    return deadlineError(newTaskDueDate, editingTask?.dueDate);
+    return deadlineError(newTaskDueDate, editingTask?.dueDate) ?? planningError(planning, newTaskDueDate);
   };
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     // A status-only update has nothing else to validate
-    const validationError = editingTask && !isManager ? null : taskFormError();
+    const managesEdited = editingTask?.myRole === "manager";
+    const validationError = editingTask && !managesEdited ? null : taskFormError();
     if (validationError) {
       setFormError(validationError);
       return;
@@ -142,8 +157,9 @@ export function Tasks() {
 
     try {
       if (editingTask) {
-        const payload = isManager
+        const payload = managesEdited
           ? {
+              ...planningToPayload(planning),
               title: newTaskTitle,
               description: newTaskDescription,
               priority: newTaskPriority,
@@ -155,9 +171,10 @@ export function Tasks() {
           : { status: newTaskStatus };
         const updated = await api.updateTask(editingTask.id, payload);
         setAllTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
-        toast.success(isManager ? "Task updated successfully!" : "Task status updated!");
+        toast.success(managesEdited ? "Task updated successfully!" : "Task status updated!");
       } else {
         const created = await api.createTask({
+          ...planningToPayload(planning),
           title: newTaskTitle,
           description: newTaskDescription,
           priority: newTaskPriority,
@@ -194,10 +211,90 @@ export function Tasks() {
         }
 
         const matchesPriority = priorityFilter === "All" || task.priority === priorityFilter;
-        return matchesSearch && matchesStatus && matchesPriority;
+        const matchesProject = projectFilter === "All" || task.projectId === projectFilter;
+        const matchesPerson = personFilter === "All" || task.assigneeIds.includes(personFilter);
+        const matchesLabel = labelFilter === "All" || task.labels.includes(labelFilter);
+        return matchesSearch && matchesStatus && matchesPriority && matchesProject && matchesPerson && matchesLabel;
       })
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  }, [activeSearchQuery, statusFilter, priorityFilter, allTasks]);
+  }, [activeSearchQuery, statusFilter, priorityFilter, projectFilter, personFilter, labelFilter, allTasks]);
+
+  const allLabels = useMemo(() => [...new Set(allTasks.flatMap((t) => t.labels))].sort(), [allTasks]);
+  const mine = !!currentUser && personFilter === currentUser.id;
+  // New tasks need the manager role in some project; the server checks the chosen one
+  const canCreate = isManager || allTasks.some((t) => t.myRole === "manager");
+
+  // Selection only keeps rows that are still on screen
+  const visibleSelected = filteredTasks.filter((t) => selected.has(t.id));
+  const allVisibleSelected = filteredTasks.length > 0 && visibleSelected.length === filteredTasks.length;
+  const toggleRow = (taskId: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+
+  // Runs one change per selected task; tasks you lack the role for are skipped and counted
+  const runBulk = async (label: string, allowed: (t: Task) => boolean, action: (t: Task) => Promise<unknown>) => {
+    const targets = visibleSelected.filter(allowed);
+    const skipped = visibleSelected.length - targets.length;
+    if (!targets.length) {
+      toast.error("You don't have permission to do that on the selected tasks.");
+      return;
+    }
+    setBulkBusy(true);
+    const results = await Promise.allSettled(targets.map(action));
+    setBulkBusy(false);
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    const ok = targets.length - failed.length;
+    if (ok) toast.success(`${label}: ${ok} task${ok === 1 ? "" : "s"}`);
+    if (failed.length) toast.error(`${failed.length} failed: ${failed[0].reason instanceof Error ? failed[0].reason.message : "unknown error"}`);
+    if (skipped) toast.info(`${skipped} skipped: you can't change ${skipped === 1 ? "that task" : "those tasks"}`);
+    setSelected(new Set());
+  };
+
+  const bulkStatus = (status: TaskStatus) =>
+    runBulk(`Moved to ${status}`, (t) => !!t.myRole && t.myRole !== "viewer", async (t) => {
+      const updated = await api.updateTask(t.id, { status });
+      setAllTasks((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+    });
+
+  const bulkAssign = (userId: string) => {
+    const name = users.find((u) => u.id === userId)?.name ?? "person";
+    return runBulk(`Assigned ${name}`, (t) => t.myRole === "manager", async (t) => {
+      if (t.assigneeIds.includes(userId)) return;
+      const updated = await api.updateTask(t.id, { assigneeIds: [...t.assigneeIds, userId] });
+      setAllTasks((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+    });
+  };
+
+  const bulkDelete = () => {
+    setConfirmBulkDelete(false);
+    return runBulk("Deleted", (t) => t.myRole === "manager", async (t) => {
+      await api.deleteTask(t.id);
+      setAllTasks((prev) => prev.filter((x) => x.id !== t.id));
+    });
+  };
+
+  const exportCsv = () => {
+    const nameOf = (id: string) => users.find((u) => u.id === id)?.name ?? "";
+    downloadCsv(`tasks-${safeFormat(new Date().toISOString(), "yyyy-MM-dd")}.csv`, [
+      ["Title", "Project", "Status", "Priority", "Due date", "Assignees", "Labels", "Estimate (h)", "Checklist", "Description"],
+      ...filteredTasks.map((t) => [
+        t.title,
+        t.project?.name ?? projects.find((p) => p.id === t.projectId)?.name,
+        t.status,
+        t.priority,
+        safeFormat(t.dueDate, "yyyy-MM-dd", ""),
+        t.assigneeIds.map(nameOf).join("; "),
+        t.labels.join("; "),
+        t.estimateHours,
+        t.subtaskTotal ? `${t.subtaskDone}/${t.subtaskTotal}` : "",
+        t.description
+      ])
+    ]);
+  };
 
   const handleSearch = () => {
     setActiveSearchQuery(searchQuery);
@@ -209,7 +306,7 @@ export function Tasks() {
     try {
       await api.deleteTask(taskToDelete);
       setAllTasks((prev) => prev.filter((task) => task.id !== taskToDelete));
-      toast.success("Task deleted");
+      toast.success("Task moved to Recently deleted");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete task");
     } finally {
@@ -222,7 +319,7 @@ export function Tasks() {
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 card p-6">
         <div className="flex items-center justify-between lg:justify-start gap-4">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap">Tasks</h1>
-          {isManager && (
+          {canCreate && (
             <button onClick={() => openModal()} className="lg:hidden flex items-center gap-2 btn-primary px-3 py-1.5 text-xs whitespace-nowrap shrink-0">
               <Plus className="w-3.5 h-3.5" />
               New Task
@@ -279,13 +376,92 @@ export function Tasks() {
           </div>
         </div>
 
-        {isManager && (
+        {canCreate && (
           <button onClick={() => openModal()} className="hidden lg:flex items-center gap-2 btn-primary px-4 py-2 whitespace-nowrap shrink-0">
             <Plus className="w-4 h-4" />
             New Task
           </button>
         )}
       </div>
+
+      <div className="flex flex-wrap items-center gap-2 -mt-4">
+        <button
+          onClick={() => setPersonFilter(mine ? "All" : currentUser?.id ?? "All")}
+          aria-pressed={mine}
+          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mine ? "bg-indigo-600 text-white border-indigo-600" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"}`}
+        >
+          My tasks
+        </button>
+        <div className="min-w-[180px]">
+          <SingleSelectDropdown
+            options={[{ id: "All", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]}
+            selectedId={projectFilter}
+            onChange={setProjectFilter}
+            Icon={FolderKanban}
+            variant="default"
+          />
+        </div>
+        <div className="min-w-[180px]">
+          <SingleSelectDropdown
+            options={[{ id: "All", name: "Everyone" }, ...users.map((u) => ({ id: u.id, name: u.name }))]}
+            selectedId={personFilter}
+            onChange={setPersonFilter}
+            Icon={UserIcon}
+            variant="default"
+          />
+        </div>
+        {allLabels.length > 0 && (
+          <div className="min-w-[160px]">
+            <SingleSelectDropdown
+              options={[{ id: "All", name: "All labels" }, ...allLabels.map((l) => ({ id: l, name: l }))]}
+              selectedId={labelFilter}
+              onChange={setLabelFilter}
+              Icon={Tag}
+              variant="default"
+            />
+          </div>
+        )}
+        <button onClick={exportCsv} disabled={!filteredTasks.length} className="ml-auto btn-secondary px-4 py-2 text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+          <Download className="w-4 h-4" />
+          Export CSV
+        </button>
+      </div>
+
+      {visibleSelected.length > 0 && (
+        <div role="toolbar" aria-label="Bulk actions" className="sticky top-2 z-20 flex flex-wrap items-center gap-3 card px-5 py-3 border-indigo-200 dark:border-indigo-900">
+          <span className="text-sm font-bold text-slate-900 dark:text-white">{visibleSelected.length} selected</span>
+          <select
+            value=""
+            disabled={bulkBusy}
+            onChange={(e) => e.target.value && void bulkStatus(e.target.value as TaskStatus)}
+            aria-label="Set status of selected tasks"
+            className="input px-3 py-2 text-sm font-semibold dark:text-slate-100"
+          >
+            <option value="">Set status…</option>
+            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select
+            value=""
+            disabled={bulkBusy}
+            onChange={(e) => e.target.value && void bulkAssign(e.target.value)}
+            aria-label="Assign selected tasks to"
+            className="input px-3 py-2 text-sm font-semibold dark:text-slate-100"
+          >
+            <option value="">Assign to…</option>
+            {users.filter((u) => u.status !== "Suspended").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          <button
+            onClick={() => setConfirmBulkDelete(true)}
+            disabled={bulkBusy}
+            className="px-4 py-2 rounded-xl text-sm font-bold border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+          >
+            Delete
+          </button>
+          <button onClick={() => setSelected(new Set())} className="ml-auto p-2 text-slate-400 hover:text-slate-600" aria-label="Clear selection">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="card overflow-hidden">
         {isLoading ? (
@@ -302,6 +478,15 @@ export function Tasks() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-zinc-50/50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
+                  <th className="pl-6 py-4 w-8">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={() => setSelected(allVisibleSelected ? new Set() : new Set(filteredTasks.map((t) => t.id)))}
+                      aria-label="Select all tasks"
+                      className="w-4 h-4 accent-indigo-600"
+                    />
+                  </th>
                   <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Task Name</th>
                   <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Project</th>
                   <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Status</th>
@@ -315,7 +500,16 @@ export function Tasks() {
                   const project = projects.find((item) => item.id === task.projectId);
 
                   return (
-                    <tr key={task.id} onClick={() => navigate(`/tasks/${task.id}`)} className="hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-colors group cursor-pointer">
+                    <tr key={task.id} onClick={() => navigate(`/tasks/${task.id}`)} className={`hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-colors group cursor-pointer ${selected.has(task.id) ? "bg-indigo-50/60 dark:bg-indigo-900/20" : ""}`}>
+                      <td className="pl-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(task.id)}
+                          onChange={() => toggleRow(task.id)}
+                          aria-label={`Select ${task.title}`}
+                          className="w-4 h-4 accent-indigo-600"
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <div className={`text-sm font-medium transition-colors group-hover:text-indigo-600 dark:group-hover:text-indigo-400 ${
@@ -328,6 +522,17 @@ export function Tasks() {
                             {task.title}
                           </div>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-1">{task.description}</span>
+                          {(task.labels.length > 0 || !!task.subtaskTotal) && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              {task.labels.map((l) => <LabelChip key={l} label={l} />)}
+                              {!!task.subtaskTotal && (
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${task.subtaskDone === task.subtaskTotal ? "text-emerald-600" : "text-slate-500"}`}>
+                                  <CheckSquare className="w-3 h-3" />
+                                  {task.subtaskDone}/{task.subtaskTotal}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{task.project?.name || project?.name}</td>
@@ -348,6 +553,7 @@ export function Tasks() {
                                 setActiveMenu(activeMenu === task.id ? null : task.id);
                               }}
                               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                              aria-label={`Actions for ${task.title}`}
                             >
                               <MoreHorizontal className="w-5 h-5" />
                             </button>
@@ -364,7 +570,7 @@ export function Tasks() {
                                 >
                                   View Details
                                 </button>
-                                <button
+                                {!!task.myRole && task.myRole !== "viewer" && <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openModal(task);
@@ -372,9 +578,9 @@ export function Tasks() {
                                     }}
                                     className="block w-full text-left px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                                   >
-                                    {isManager ? "Edit Task" : "Update Status"}
-                                  </button>
-                                {isManager && (
+                                    {task.myRole === "manager" ? "Edit Task" : "Update Status"}
+                                  </button>}
+                                {task.myRole === "manager" && (
                                   <>
                                     <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
                                     <button
@@ -403,30 +609,20 @@ export function Tasks() {
         )}
       </div>
 
-      {taskToDelete &&
-        createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300">
-            <div className="card w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
-              <div className="p-8 text-center space-y-5">
-                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto">
-                  <X className="w-8 h-8 text-red-600 dark:text-red-400" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">Delete Task?</h2>
-                </div>
-                <div className="pt-4 flex gap-4">
-                  <button onClick={() => setTaskToDelete(null)} className="flex-1 px-6 py-3 btn-secondary">
-                    Cancel
-                  </button>
-                  <button onClick={deleteTask} className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-all">
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
+      <ConfirmDialog
+        open={!!taskToDelete}
+        title="Delete Task?"
+        message="It moves to Recently deleted, where a manager can restore it within 30 days."
+        onConfirm={deleteTask}
+        onCancel={() => setTaskToDelete(null)}
+      />
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        title={`Delete ${visibleSelected.length} task${visibleSelected.length === 1 ? "" : "s"}?`}
+        message="They move to Recently deleted, where a manager can restore them within 30 days. Tasks you don't manage are skipped."
+        onConfirm={() => void bulkDelete()}
+        onCancel={() => setConfirmBulkDelete(false)}
+      />
 
       <AddTaskModal
         isOpen={isModalOpen}
@@ -454,7 +650,9 @@ export function Tasks() {
         setNewTaskDueDate={setNewTaskDueDate}
         users={users}
         projects={projects}
-        statusOnly={!isManager}
+        statusOnly={!!editingTask && editingTask.myRole !== "manager"}
+        planning={planning}
+        setPlanning={setPlanning}
       />
     </div>
   );

@@ -1,9 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ChevronRight, ArrowLeft, AlignLeft, MessageSquare, Clock, Tag, Calendar, User as UserIcon, Edit2, Trash2 } from "lucide-react";
+import { ArrowLeft, AlignLeft, MessageSquare, Clock, Tag, Calendar, User as UserIcon, Edit2, Trash2, Eye, EyeOff, Repeat, Flag, Lock, Link2, Timer, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type { Activity, Project, Task, User, Attachment, TaskPriority, TaskStatus } from "@/lib/api-types";
+import type { Activity, Project, Task, TaskLink, User, TaskPriority, TaskStatus } from "@/lib/api-types";
+import { emptyPlanning, openBlockers, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
+import { LabelChip } from "@/components/ui/LabelChip";
+import { TaskChecklist } from "@/components/task/TaskChecklist";
+import { TimeLog } from "@/components/task/TimeLog";
 import { AttachmentSection } from "@/components/AttachmentSection";
 import { AddTaskModal } from "@/components/AddTaskModal";
 import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
@@ -28,7 +32,6 @@ export function TaskDetails() {
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const { currentUser } = useAuth();
-  const isManager = ["Manager", "Project Manager", "Admin"].includes(currentUser?.role ?? "");
   const { socket, joinProject, leaveProject } = useSocket();
 
   // Task Edit State
@@ -42,6 +45,8 @@ export function TaskDetails() {
   const [newTaskAssigneeIds, setNewTaskAssigneeIds] = useState<string[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [formError, setFormError] = useState("");
+  const [planning, setPlanning] = useState<PlanningState>(emptyPlanning);
+  const [watchBusy, setWatchBusy] = useState(false);
 
   const filteredSuggestions = useMemo(() => {
     // De-duplicate users by name for the suggestions list
@@ -217,6 +222,25 @@ export function TaskDetails() {
     }
   }, [socket, id]);
 
+  // Per-project role from the server: managers edit everything, contributors move status and log work, viewers read
+  const canManage = task?.myRole === "manager";
+  const canContribute = !!task?.myRole && task.myRole !== "viewer";
+  const watching = !!task?.watchers?.some((w) => w.id === currentUser?.id);
+
+  const toggleWatch = async () => {
+    if (!id || !task || watchBusy) return;
+    setWatchBusy(true);
+    try {
+      await api.setWatching(id, !watching);
+      setTask(await api.getTask(id));
+      toast.success(watching ? "You'll stop getting updates on this task" : "You'll get updates on this task");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change following");
+    } finally {
+      setWatchBusy(false);
+    }
+  };
+
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !newComment.trim() || isSubmitting) return;
@@ -268,7 +292,7 @@ export function TaskDetails() {
     if (!id || !task) return;
     try {
       await api.deleteTask(id);
-      toast.success("Task deleted");
+      toast.success("Task moved to Recently deleted");
       navigate(`/projects/${task.projectId}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete task");
@@ -296,6 +320,7 @@ export function TaskDetails() {
     setNewTaskDueDate(safeFormat(task.dueDate, "yyyy-MM-dd"));
     setNewTaskProjectId(task.projectId);
     setNewTaskAssigneeIds(task.assigneeIds || []);
+    setPlanning(planningFromTask(task));
     setFormError("");
     setIsModalOpen(true);
   };
@@ -304,7 +329,7 @@ export function TaskDetails() {
     e.preventDefault();
     if (!id || !task) return;
 
-    if (isManager) {
+    if (canManage) {
       if (!newTaskTitle.trim() || !newTaskDescription.trim()) {
         setFormError("All task fields are required.");
         return;
@@ -320,11 +345,18 @@ export function TaskDetails() {
         setFormError(dateError);
         return;
       }
+
+      const planError = planningError(planning, newTaskDueDate);
+      if (planError) {
+        setFormError(planError);
+        return;
+      }
     }
 
     try {
       // Non-managers may only move the status; the server ignores anything else they send
-      const updated = await api.updateTask(id, isManager ? {
+      const updated = await api.updateTask(id, canManage ? {
+        ...planningToPayload(planning),
         title: newTaskTitle,
         description: newTaskDescription,
         priority: newTaskPriority,
@@ -337,7 +369,7 @@ export function TaskDetails() {
       setTask(updated);
       setIsModalOpen(false);
       void api.getActivity(`?taskId=${id}`).then(setActivity).catch(() => undefined);
-      toast.success(isManager ? "Task updated successfully!" : "Task status updated!");
+      toast.success(canManage ? "Task updated successfully!" : "Task status updated!");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Failed to save task");
     }
@@ -392,16 +424,27 @@ export function TaskDetails() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Everyone who can see the task may move its status; only managers edit the rest */}
+        <div className="flex flex-wrap items-center gap-3">
           <button
+            onClick={toggleWatch}
+            disabled={watchBusy}
+            aria-pressed={watching}
+            title={watching ? "Stop getting updates on this task" : "Get notified about changes and comments"}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm disabled:opacity-50"
+          >
+            {watching ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {watching ? "Following" : "Follow"}
+            {!!task.watchers?.length && <span className="text-xs text-slate-400">{task.watchers.length}</span>}
+          </button>
+          {/* Contributors may move the status; only project managers edit the rest; viewers neither */}
+          {canContribute && <button
             onClick={openModal}
             className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
           >
             <Edit2 className="w-4 h-4" />
-            {isManager ? "Edit Task" : "Update Status"}
-          </button>
-          {isManager && (
+            {canManage ? "Edit Task" : "Update Status"}
+          </button>}
+          {canManage && (
             <button
               onClick={() => setConfirmTaskDelete(true)}
               className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/50 rounded-xl text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shadow-sm"
@@ -413,6 +456,19 @@ export function TaskDetails() {
         </div>
       </div>
 
+      {task.myRole === "viewer" && (
+        <div role="note" className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-300">
+          <Eye className="w-4 h-4" />
+          You can view this task but not change it or comment. Ask a project manager for a bigger role.
+        </div>
+      )}
+      {openBlockers(task).length > 0 && task.status !== "Completed" && (
+        <div role="status" className="flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 text-sm font-semibold text-amber-800 dark:text-amber-300">
+          <Lock className="w-4 h-4 shrink-0" />
+          Waiting on {openBlockers(task).map((b) => `"${b.title}"`).join(", ")}. You can still start it, but the work may not be ready.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <div className="card p-6 transition-all">
@@ -423,8 +479,25 @@ export function TaskDetails() {
             <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">{task.description || "No description provided."}</p>
           </div>
 
+          <TaskChecklist
+            taskId={task.id}
+            items={task.subtasks ?? []}
+            canEdit={canContribute}
+            onChange={(subtasks) => setTask((prev) => prev && { ...prev, subtasks })}
+          />
+
+          <TimeLog
+            taskId={task.id}
+            entries={task.timeEntries ?? []}
+            estimateHours={task.estimateHours}
+            canLog={canContribute}
+            canManage={canManage}
+            currentUserId={currentUser?.id}
+            onChange={(timeEntries) => setTask((prev) => prev && { ...prev, timeEntries })}
+          />
+
           <div className="card p-6">
-            <AttachmentSection taskId={task.id} initialAttachments={task.attachments} />
+            <AttachmentSection taskId={task.id} initialAttachments={task.attachments} canContribute={canContribute} canManage={canManage} />
           </div>
 
             <div className="space-y-6">
@@ -435,7 +508,7 @@ export function TaskDetails() {
                 Discussion & Activity
               </h3>
             <div className="card p-6 space-y-6">
-              <form onSubmit={handlePostComment} className="flex gap-4 mb-8">
+              {canContribute && <form onSubmit={handlePostComment} className="flex gap-4 mb-8">
                 <div className="flex-1 relative">
                   {showSuggestions && filteredSuggestions.length > 0 && (
                     <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-2 duration-200">
@@ -483,7 +556,7 @@ export function TaskDetails() {
                 >
                   Post
                 </button>
-              </form>
+              </form>}
 
               {/* Unified Timeline: Merge system activities and comments */}
               {[
@@ -542,7 +615,7 @@ export function TaskDetails() {
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            {!entry.isSystem && (entry.userId === currentUser?.id || isManager) && (
+                            {!entry.isSystem && (entry.userId === currentUser?.id || canManage) && (
                               <button
                                 type="button"
                                 onClick={() => setCommentToDelete(entry.id)}
@@ -610,7 +683,16 @@ export function TaskDetails() {
             <div className="space-y-4">
               <PropertyRow icon={<Clock className="w-4 h-4" />} label="Status" value={task.status} />
               <PropertyRow icon={<Tag className="w-4 h-4" />} label="Priority" value={task.priority} />
+              {task.startDate && <PropertyRow icon={<PlayCircle className="w-4 h-4" />} label="Start" value={safeFormat(task.startDate, "MMM d, yyyy")} />}
               <PropertyRow icon={<Calendar className="w-4 h-4" />} label="Due Date" value={safeFormat(task.dueDate, "MMM d, yyyy")} />
+              {task.estimateHours != null && <PropertyRow icon={<Timer className="w-4 h-4" />} label="Estimate" value={`${task.estimateHours}h`} />}
+              {task.recurrence && <PropertyRow icon={<Repeat className="w-4 h-4" />} label="Repeats" value={task.recurrence.charAt(0) + task.recurrence.slice(1).toLowerCase()} />}
+              {task.milestone && <PropertyRow icon={<Flag className="w-4 h-4" />} label="Milestone" value={task.milestone.name} />}
+              {task.labels.length > 0 && (
+                <div className="flex flex-wrap gap-1.5" aria-label="Labels">
+                  {task.labels.map((l) => <LabelChip key={l} label={l} />)}
+                </div>
+              )}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2 text-zinc-500 text-sm">
                   <UserIcon className="w-4 h-4" />
@@ -631,12 +713,37 @@ export function TaskDetails() {
               </div>
             </div>
           </div>
+
+          {(!!task.blockedBy?.length || !!task.blocks?.length) && (
+            <div className="card p-6 space-y-4" aria-label="Dependencies">
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider flex items-center gap-2">
+                <Link2 className="w-4 h-4" />
+                Dependencies
+              </h3>
+              <DependencyList label="Waiting on" links={task.blockedBy ?? []} />
+              <DependencyList label="Holding up" links={task.blocks ?? []} />
+            </div>
+          )}
+
+          {!!task.watchers?.length && (
+            <div className="card p-6" aria-label="Followers">
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider mb-3">Followers</h3>
+              <div className="flex flex-wrap gap-2">
+                {task.watchers.map((w) => (
+                  <div key={w.id} className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
+                    <Avatar name={w.name} src={w.avatar} className="w-5 h-5 rounded-full" />
+                    <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{w.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <ConfirmDialog
         open={confirmTaskDelete}
         title="Delete task?"
-        message={`"${task.title}" and its comments will be removed for everyone.`}
+        message={`"${task.title}" moves to Recently deleted, where a manager can restore it within 30 days.`}
         onConfirm={handleDeleteTask}
         onCancel={() => setConfirmTaskDelete(false)}
       />
@@ -670,8 +777,32 @@ export function TaskDetails() {
         setNewTaskDueDate={setNewTaskDueDate}
         users={users}
         projects={projects}
-        statusOnly={!isManager}
+        statusOnly={!canManage}
+        planning={planning}
+        setPlanning={setPlanning}
       />
+    </div>
+  );
+}
+
+function DependencyList({ label, links }: { label: string; links: TaskLink[] }) {
+  if (!links.length) return null;
+  return (
+    <div>
+      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">{label}</p>
+      <ul className="space-y-1">
+        {links.map((l) => {
+          const finished = l.status === "DONE" || l.status === "Completed";
+          return (
+            <li key={l.id}>
+              <Link to={`/tasks/${l.id}`} className="flex items-center justify-between gap-2 text-sm hover:text-indigo-600">
+                <span className={`truncate ${finished ? "line-through text-slate-400" : "text-slate-700 dark:text-slate-200"}`}>{l.title}</span>
+                <span className={`text-[10px] font-bold shrink-0 ${finished ? "text-emerald-600" : "text-amber-600"}`}>{finished ? "Done" : "Open"}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

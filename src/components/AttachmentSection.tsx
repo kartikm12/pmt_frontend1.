@@ -13,6 +13,9 @@ interface AttachmentSectionProps {
   projectId?: string;
   taskId?: string;
   initialAttachments?: Attachment[];
+  // Project role: viewers can't upload; project managers can delete anyone's file
+  canContribute?: boolean;
+  canManage?: boolean;
 }
 
 const getFileIcon = (fileType: string) => {
@@ -36,7 +39,7 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 // One shared empty list: a fresh `[]` default each render made the effect below refetch in a loop
 const NO_ATTACHMENTS: Attachment[] = [];
 
-export function AttachmentSection({ projectId, taskId, initialAttachments = NO_ATTACHMENTS }: AttachmentSectionProps) {
+export function AttachmentSection({ projectId, taskId, initialAttachments = NO_ATTACHMENTS, canContribute = true, canManage }: AttachmentSectionProps) {
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,7 +131,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
           Attachments
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">({attachments.length})</span>
         </h3>
-        <button
+        {canContribute && <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
           className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5"
@@ -139,7 +142,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
             <Paperclip className="w-3.5 h-3.5" />
           )}
           Upload File
-        </button>
+        </button>}
         <input
           type="file"
           ref={fileInputRef}
@@ -183,7 +186,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
                 >
                   <Download className="w-4 h-4" />
                 </a>
-                {(file.userId === currentUser?.id || isManager(currentUser?.role)) && (
+                {(file.userId === currentUser?.id || (canManage ?? isManager(currentUser?.role))) && (
                   <button
                     onClick={() => setFileToDelete(file)}
                     className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
