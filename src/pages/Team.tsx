@@ -11,6 +11,7 @@ import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { Avatar } from "@/components/ui/Avatar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { WorkloadPanel } from "@/components/team/WorkloadPanel";
+import { useBusy } from "@/lib/useBusy";
 import { PendingSignups } from "@/components/team/PendingSignups";
 
 const ROLE_OPTIONS: User["role"][] = [
@@ -28,6 +29,7 @@ const ROLE_OPTIONS: User["role"][] = [
 export function Team() {
   const { currentUser } = useAuth();
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
+  const [saving, guard] = useBusy();
   const [view, setView] = useState<"members" | "workload">("members");
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,7 +62,7 @@ export function Team() {
     return () => window.removeEventListener("click", close);
   }, [activeMenu]);
 
-  const handleUpdate = async (e: React.FormEvent) => {
+  const handleUpdate = guard(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberToEdit) return;
     if (inviteName.trim().length < 2) {
@@ -84,7 +86,7 @@ export function Team() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update member");
     }
-  };
+  });
 
   const loadTeam = async () => {
     try {
@@ -112,7 +114,7 @@ export function Team() {
     setActiveSearchQuery(searchQuery);
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
+  const handleInvite = guard(async (e: React.FormEvent) => {
     e.preventDefault();
     // Forms use noValidate (no browser popups); these are the rules the browser used to enforce
     const problem =
@@ -148,12 +150,12 @@ export function Team() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add team member");
     }
-  };
+  });
 
   const [memberToSuspend, setMemberToSuspend] = useState<User | null>(null);
 
   // Suspending signs the person out everywhere and blocks login; their work and history stay intact
-  const changeStatus = async (member: User, status: "Active" | "Suspended") => {
+  const changeStatus = guard(async (member: User, status: "Active" | "Suspended") => {
     setMemberToSuspend(null);
     try {
       await api.updateTeamMember(member.id, { status });
@@ -162,9 +164,9 @@ export function Team() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update member");
     }
-  };
+  });
 
-  const handleDeleteMember = async () => {
+  const handleDeleteMember = guard(async () => {
     if (!memberToDelete) return;
 
     try {
@@ -177,7 +179,7 @@ export function Team() {
       setIsDeleteModalOpen(false);
       setMemberToDelete(null);
     }
-  };
+  });
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500">
@@ -263,8 +265,8 @@ export function Team() {
                   <button type="button" onClick={() => setIsInviteModalOpen(false)} className="flex-1 px-6 py-4 btn-secondary text-sm font-bold uppercase tracking-widest">
                     Cancel
                   </button>
-                  <button type="submit" className="flex-1 btn-primary px-6 py-4 text-sm font-bold uppercase tracking-widest">
-                    Add Member
+                  <button type="submit" disabled={saving} className="flex-1 btn-primary px-6 py-4 text-sm font-bold uppercase tracking-widest disabled:opacity-70">
+                    {saving ? "Saving…" : "Add Member"}
                   </button>
                 </div>
               </form>
@@ -325,8 +327,8 @@ export function Team() {
                   <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-6 py-4 btn-secondary text-sm font-bold uppercase tracking-widest">
                     Cancel
                   </button>
-                  <button type="submit" className="flex-1 btn-primary px-6 py-4 text-sm font-bold uppercase tracking-widest">
-                    Update Member
+                  <button type="submit" disabled={saving} className="flex-1 btn-primary px-6 py-4 text-sm font-bold uppercase tracking-widest disabled:opacity-70">
+                    {saving ? "Saving…" : "Update Member"}
                   </button>
                 </div>
               </form>
@@ -533,8 +535,8 @@ export function Team() {
                   <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-6 py-3 btn-secondary">
                     Cancel
                   </button>
-                  <button onClick={handleDeleteMember} className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-all">
-                    Delete
+                  <button onClick={handleDeleteMember} disabled={saving} className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-all disabled:opacity-70">
+                    {saving ? "Removing…" : "Delete"}
                   </button>
                 </div>
               </div>

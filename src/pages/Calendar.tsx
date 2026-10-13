@@ -36,14 +36,13 @@ export function Calendar() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api.getTasks(), api.getProjects(), api.getTeam()])
-      .then(async ([t, p, u]) => {
+    // Milestones are extra: the calendar still works if they fail to load
+    Promise.all([api.getTasks(), api.getProjects(), api.getTeam(), api.getMilestones().catch(() => [])])
+      .then(([t, p, u, m]) => {
         setTasks(t);
         setProjects(p);
         setUsers(u);
-        // Milestones live in each project bundle. shortcut: one request per project; add a milestones endpoint if projects grow past ~50
-        const bundles = await Promise.allSettled(p.map((proj) => api.getProjectBundle(proj.id)));
-        setMilestones(bundles.flatMap((b) => (b.status === "fulfilled" ? (b.value.project.milestones ?? []).map((m) => ({ ...m, projectId: b.value.project.id, projectName: b.value.project.name })) : [])));
+        setMilestones(m);
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : "Couldn't load the calendar"))
       .finally(() => setIsLoading(false));

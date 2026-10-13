@@ -6,20 +6,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from "react-router-dom";
 import { Toaster } from "sonner";
 import { MainLayout } from "./components/layout/MainLayout";
-import { Dashboard } from "./pages/Dashboard";
-import { Projects } from "./pages/Projects";
-import { ProjectDetails } from "./pages/ProjectDetails";
-import { Tasks } from "./pages/Tasks";
-import { TaskDetails } from "./pages/TaskDetails";
-import { Reports } from "./pages/Reports";
-import { Leaderboard } from "./pages/Leaderboard";
-import { Team } from "./pages/Team";
-import { Settings } from "./pages/Settings";
-import { Notifications } from "./pages/Notifications";
-import { Calendar } from "./pages/Calendar";
-import { Trash } from "./pages/Trash";
-import { AuditLog } from "./pages/AuditLog";
 import { Login } from "./pages/Login";
+import { Pages } from "./pages/lazyPages";
+
+const { Dashboard, Projects, ProjectDetails, Tasks, TaskDetails, Reports, Leaderboard, Team, Settings, Notifications, Calendar, Trash, AuditLog } = Pages;
 import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NavigationProvider } from "./context/NavigationContext";

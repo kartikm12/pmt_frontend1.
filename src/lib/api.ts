@@ -69,6 +69,7 @@ export type RawProject = {
 
 export type RawTask = {
   id: string;
+  createdBy?: { id: string; fullName: string } | null;
   projectId: string;
   title: string;
   description?: string | null;
@@ -303,7 +304,8 @@ export function mapTask(raw: RawTask): Task {
     watchers: raw.watchers?.map(mapUser),
     timeEntries: raw.timeEntries,
     myRole: raw.myRole ?? null,
-    createdAt: raw.createdAt
+    createdAt: raw.createdAt,
+    createdByName: raw.createdBy?.fullName
   };
 }
 
@@ -355,7 +357,22 @@ export function fileUrl(url: string) {
   return /^https?:\/\//.test(url) ? url : `${API_BASE_URL.replace(/\/api$/, "")}${url}`;
 }
 
-async function request<T>(path: string, options: RequestInit = {}) {
+// A change already on its way is never sent twice: a repeat click on Save/Delete/Invite while the first
+// request is still running gets that same request's answer instead of firing a duplicate
+const inFlight = new Map<string, Promise<unknown>>();
+
+function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+  if (method === "GET" || (options.body !== undefined && typeof options.body !== "string")) return send<T>(path, options);
+  const key = `${method} ${path} ${options.body ?? ""}`;
+  const running = inFlight.get(key);
+  if (running) return running as Promise<T>;
+  const p = send<T>(path, options).finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
+
+async function send<T>(path: string, options: RequestInit = {}) {
   const token = getStoredToken();
   const headers = new Headers(options.headers);
 
@@ -738,6 +755,11 @@ export const api = {
 
   async reorderTasks(projectId: string, status: TaskStatus, orderedIds: string[]) {
     return request(`/tasks/reorder`, { method: "POST", body: JSON.stringify({ projectId, status: toApiTaskStatus(status), orderedIds }) });
+  },
+
+  // Every dated milestone you can see, in one request (the Calendar)
+  async getMilestones() {
+    return request<Array<Milestone & { projectId: string; projectName: string }>>("/projects/milestones");
   },
 
   async getTrash() {

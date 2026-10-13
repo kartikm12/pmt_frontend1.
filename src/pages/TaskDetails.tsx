@@ -1,9 +1,28 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, AlignLeft, MessageSquare, Clock, Tag, Calendar, User as UserIcon, Edit2, Trash2, Eye, EyeOff, Repeat, Flag, Lock, Link2, Timer, PlayCircle } from "lucide-react";
+import { Calendar, Edit2, Trash2, Eye, EyeOff, Repeat, Lock, MoreHorizontal, FolderKanban, CheckSquare, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Activity, Project, Task, TaskLink, User, TaskPriority, TaskStatus } from "@/lib/api-types";
+import { differenceInCalendarDays } from "date-fns";
+
+const STATUSES: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
+const PRIORITY_PILL: Record<string, string> = {
+  Urgent: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  High: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  Medium: "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
+  Low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+};
+
+// "in 5 days", "today", "2 days overdue" (deadlines are whole days)
+function dueWords(due: string, done: boolean) {
+  const d = differenceInCalendarDays(new Date(due), new Date());
+  if (done) return "";
+  if (d === 0) return "today";
+  if (d === 1) return "tomorrow";
+  if (d > 1) return `in ${d} days`;
+  return d === -1 ? "1 day overdue" : `${-d} days overdue`;
+}
 import { emptyPlanning, openBlockers, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
 import { LabelChip } from "@/components/ui/LabelChip";
 import { TaskChecklist } from "@/components/task/TaskChecklist";
@@ -47,6 +66,10 @@ export function TaskDetails() {
   const [formError, setFormError] = useState("");
   const [planning, setPlanning] = useState<PlanningState>(emptyPlanning);
   const [watchBusy, setWatchBusy] = useState(false);
+  const [tab, setTab] = useState<"comments" | "activity" | "time" | "files">("comments");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null);
 
   const filteredSuggestions = useMemo(() => {
     // De-duplicate users by name for the suggestions list
@@ -241,6 +264,27 @@ export function TaskDetails() {
     }
   };
 
+  const saveStatus = async (status: TaskStatus) => {
+    if (!id || !task || statusBusy || status === task.status) return;
+    setStatusBusy(true);
+    try {
+      const updated = await api.updateTask(id, { status });
+      setTask(updated);
+      void api.getActivity(`?taskId=${id}`).then(setActivity).catch(() => undefined);
+      toast.success(`Moved to ${status}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change the status");
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const changeStatus = (status: TaskStatus) => {
+    if (!task) return;
+    if (status !== "To Do" && status !== task.status && openBlockers(task).length) setPendingStatus(status);
+    else void saveStatus(status);
+  };
+
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !newComment.trim() || isSubmitting) return;
@@ -397,62 +441,102 @@ export function TaskDetails() {
     );
   }
 
+  const loggedHours = Math.round(((task.timeEntries ?? []).reduce((s, e) => s + e.minutes, 0) / 60) * 10) / 10;
+  const done = task.status === "Completed";
+  const late = !done && isOverdue(task.dueDate);
+
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 btn-secondary rounded-lg transition-colors text-zinc-500">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className={`text-3xl font-bold tracking-tight ${
-              task.status === "Completed"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : isOverdue(task.dueDate)
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-zinc-900 dark:text-zinc-100"
-            }`}>
-              {task.title}
-            </h1>
-            <div className="flex items-center gap-3 mt-2">
-              {project && (
-                <Link to={`/projects/${project.id}`} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
-                  {project.name}
-                </Link>
-              )}
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">ID: {task.id}</span>
-            </div>
+    <div className="max-w-6xl mx-auto space-y-5 animate-in fade-in duration-500 pb-20">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          {project && (
+            <Link to={`/projects/${project.id}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600">
+              <FolderKanban className="w-4 h-4" />
+              {project.name}
+            </Link>
+          )}
+          <h1 className={`text-3xl font-bold tracking-tight mt-1 break-words ${done ? "text-emerald-600 dark:text-emerald-400" : late ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>
+            {task.title}
+          </h1>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            {canContribute ? (
+              <select
+                value={task.status}
+                disabled={statusBusy}
+                onChange={(e) => changeStatus(e.target.value as TaskStatus)}
+                aria-label="Status"
+                className="pl-3 pr-8 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-60"
+              >
+                {STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
+              </select>
+            ) : (
+              <span className="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200" aria-label="Status">{task.status}</span>
+            )}
+            <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${PRIORITY_PILL[task.priority] ?? PRIORITY_PILL.Low}`}>{task.priority}</span>
+            {task.dueDate && (
+              <span data-due className={`inline-flex items-center gap-1.5 text-sm font-semibold ${late ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-300"}`}>
+                <Calendar className="w-4 h-4" />
+                Due {safeFormat(task.dueDate, "MMM d")}{dueWords(task.dueDate, done) && ` · ${dueWords(task.dueDate, done)}`}
+              </span>
+            )}
+            {task.recurrence && (
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
+                <Repeat className="w-4 h-4" />
+                Repeats {task.recurrence.toLowerCase()}
+              </span>
+            )}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={toggleWatch}
             disabled={watchBusy}
             aria-pressed={watching}
             title={watching ? "Stop getting updates on this task" : "Get notified about changes and comments"}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm disabled:opacity-50"
+            className="btn-secondary px-4 py-2 text-sm font-bold flex items-center gap-2 disabled:opacity-50"
           >
             {watching ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             {watching ? "Following" : "Follow"}
-            {!!task.watchers?.length && <span className="text-xs text-slate-400">{task.watchers.length}</span>}
           </button>
-          {/* Contributors may move the status; only project managers edit the rest; viewers neither */}
-          {canContribute && <button
-            onClick={openModal}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
-          >
-            <Edit2 className="w-4 h-4" />
-            {canManage ? "Edit Task" : "Update Status"}
-          </button>}
           {canManage && (
-            <button
-              onClick={() => setConfirmTaskDelete(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/50 rounded-xl text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shadow-sm"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
+            <button onClick={openModal} className="btn-secondary px-4 py-2 text-sm font-bold flex items-center gap-2">
+              <Edit2 className="w-4 h-4" />
+              Edit
             </button>
           )}
+          <div className="relative">
+            <button onClick={() => setMenuOpen((o) => !o)} aria-label="More actions" aria-expanded={menuOpen} className="btn-secondary px-3 py-2">
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+            {menuOpen && (
+              <div role="menu" className="absolute right-0 mt-1 w-44 card py-1 z-30" onMouseLeave={() => setMenuOpen(false)}>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void navigator.clipboard?.writeText(window.location.href).then(() => toast.success("Link copied"), () => toast.error("Couldn't copy the link"));
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  Copy link
+                </button>
+                {canManage && (
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setConfirmTaskDelete(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete task
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -469,14 +553,12 @@ export function TaskDetails() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <div className="card p-6 transition-all">
-            <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold mb-4">
-              <AlignLeft className="w-5 h-5 text-zinc-400" />
-              <h3>Description</h3>
-            </div>
-            <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">{task.description || "No description provided."}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+        <div className="space-y-5 min-w-0">
+          <div className="card p-5" aria-label="Description">
+            <p className={`leading-relaxed whitespace-pre-wrap break-words ${task.description ? "text-slate-700 dark:text-slate-200" : "text-slate-400"}`}>
+              {task.description || "No description."}
+            </p>
           </div>
 
           <TaskChecklist
@@ -486,29 +568,28 @@ export function TaskDetails() {
             onChange={(subtasks) => setTask((prev) => prev && { ...prev, subtasks })}
           />
 
-          <TimeLog
-            taskId={task.id}
-            entries={task.timeEntries ?? []}
-            estimateHours={task.estimateHours}
-            canLog={canContribute}
-            canManage={canManage}
-            currentUserId={currentUser?.id}
-            onChange={(timeEntries) => setTask((prev) => prev && { ...prev, timeEntries })}
-          />
-
-          <div className="card p-6">
-            <AttachmentSection taskId={task.id} initialAttachments={task.attachments} canContribute={canContribute} canManage={canManage} />
+          <div role="tablist" className="flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
+            {([
+              ["comments", `Comments ${task.comments?.length ?? 0}`],
+              ["activity", "Activity"],
+              ["time", `Time ${loggedHours}h`],
+              ["files", `Files ${task.attachments?.length ?? 0}`]
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={`px-3 py-2 -mb-px text-sm font-semibold border-b-2 transition-colors ${tab === key ? "border-indigo-500 text-slate-900 dark:text-white" : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-            <div className="space-y-6">
-              <h3 className="text-xl font-extrabold text-zinc-900 dark:text-zinc-100 flex items-center gap-3 font-display tracking-tight">
-                <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg">
-                  <MessageSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                Discussion & Activity
-              </h3>
-            <div className="card p-6 space-y-6">
-              {canContribute && <form onSubmit={handlePostComment} className="flex gap-4 mb-8">
+          {(tab === "comments" || tab === "activity") && (
+            <div className="card p-5 space-y-6">
+              {canContribute && tab === "comments" && <form onSubmit={handlePostComment} className="flex gap-4 mb-8">
                 <div className="flex-1 relative">
                   {showSuggestions && filteredSuggestions.length > 0 && (
                     <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-2 duration-200">
@@ -573,6 +654,7 @@ export function TaskDetails() {
                   user: c.user
                 })) || [])
               ]
+                .filter((e) => (tab === "activity") === e.isSystem)
                 .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                 .map((entry) => {
                   const actor = entry.user || users.find(u => u.id === entry.userId);
@@ -670,76 +752,97 @@ export function TaskDetails() {
                   );
                 })
               }
-              {activity.length === 0 && (!task.comments || task.comments.length === 0) && (
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-4">No activity or comments yet.</p>
+              {tab === "comments" && !task.comments?.length && (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No comments yet.</p>
+              )}
+              {tab === "activity" && !activity.some((a) => a.type !== "comment_added") && (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No activity yet.</p>
               )}
             </div>
-          </div>
+          )}
+
+          {tab === "time" && (
+            <TimeLog
+              taskId={task.id}
+              entries={task.timeEntries ?? []}
+              estimateHours={task.estimateHours}
+              canLog={canContribute}
+              canManage={canManage}
+              currentUserId={currentUser?.id}
+              onChange={(timeEntries) => setTask((prev) => prev && { ...prev, timeEntries })}
+            />
+          )}
+
+          {tab === "files" && (
+            <div className="card p-6">
+              <AttachmentSection taskId={task.id} initialAttachments={task.attachments} canContribute={canContribute} canManage={canManage} />
+            </div>
+          )}
         </div>
 
-        <div className="space-y-6">
-          <div className="card p-6 space-y-6">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">Properties</h3>
-            <div className="space-y-4">
-              <PropertyRow icon={<Clock className="w-4 h-4" />} label="Status" value={task.status} />
-              <PropertyRow icon={<Tag className="w-4 h-4" />} label="Priority" value={task.priority} />
-              {task.startDate && <PropertyRow icon={<PlayCircle className="w-4 h-4" />} label="Start" value={safeFormat(task.startDate, "MMM d, yyyy")} />}
-              <PropertyRow icon={<Calendar className="w-4 h-4" />} label="Due Date" value={safeFormat(task.dueDate, "MMM d, yyyy")} />
-              {task.estimateHours != null && <PropertyRow icon={<Timer className="w-4 h-4" />} label="Estimate" value={`${task.estimateHours}h`} />}
-              {task.recurrence && <PropertyRow icon={<Repeat className="w-4 h-4" />} label="Repeats" value={task.recurrence.charAt(0) + task.recurrence.slice(1).toLowerCase()} />}
-              {task.milestone && <PropertyRow icon={<Flag className="w-4 h-4" />} label="Milestone" value={task.milestone.name} />}
-              {task.labels.length > 0 && (
-                <div className="flex flex-wrap gap-1.5" aria-label="Labels">
-                  {task.labels.map((l) => <LabelChip key={l} label={l} />)}
-                </div>
-              )}
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-zinc-500 text-sm">
-                  <UserIcon className="w-4 h-4" />
-                  <span>Assignees</span>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {assignees.length === 0 ? (
-                    <span className="text-sm font-semibold text-zinc-400">Unassigned</span>
-                  ) : (
-                    assignees.map(user => (
-                      <div key={user.id} className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
-                        <Avatar name={user.name} src={user.avatar} className="w-5 h-5 rounded-full" />
-                        <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{user.name}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
+        <aside className="card p-5 space-y-4 text-sm lg:sticky lg:top-4" aria-label="Details">
+          <SideRow label="Assignees">
+            {assignees.length === 0 ? (
+              <span className="text-slate-400">Unassigned</span>
+            ) : (
+              <div className="flex flex-col items-end gap-1.5">
+                {assignees.map((u) => (
+                  <span key={u.id} className="inline-flex items-center gap-2">
+                    {u.name}
+                    <Avatar name={u.name} src={u.avatar} className="w-5 h-5 rounded-full" />
+                  </span>
+                ))}
               </div>
-            </div>
-          </div>
-
+            )}
+          </SideRow>
+          <SideRow label="Start">{task.startDate ? safeFormat(task.startDate, "MMM d, yyyy") : "—"}</SideRow>
+          <SideRow label="Estimate">
+            {task.estimateHours != null ? `${task.estimateHours}h (${loggedHours}h logged)` : loggedHours ? `${loggedHours}h logged` : "—"}
+          </SideRow>
+          <SideRow label="Milestone">{task.milestone?.name ?? "—"}</SideRow>
+          <SideRow label="Labels">
+            {task.labels.length ? <div className="flex flex-wrap justify-end gap-1">{task.labels.map((l) => <LabelChip key={l} label={l} />)}</div> : "—"}
+          </SideRow>
           {(!!task.blockedBy?.length || !!task.blocks?.length) && (
-            <div className="card p-6 space-y-4" aria-label="Dependencies">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider flex items-center gap-2">
-                <Link2 className="w-4 h-4" />
-                Dependencies
-              </h3>
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-3" aria-label="Dependencies">
               <DependencyList label="Waiting on" links={task.blockedBy ?? []} />
               <DependencyList label="Holding up" links={task.blocks ?? []} />
             </div>
           )}
-
-          {!!task.watchers?.length && (
-            <div className="card p-6" aria-label="Followers">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider mb-3">Followers</h3>
-              <div className="flex flex-wrap gap-2">
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-4" aria-label="Followers">
+            <p className="text-slate-500 dark:text-slate-400 mb-1.5">Followers</p>
+            {task.watchers?.length ? (
+              <div className="flex flex-wrap gap-1.5">
                 {task.watchers.map((w) => (
-                  <div key={w.id} className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
-                    <Avatar name={w.name} src={w.avatar} className="w-5 h-5 rounded-full" />
-                    <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{w.name}</span>
-                  </div>
+                  <span key={w.id} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    <Avatar name={w.name} src={w.avatar} className="w-4 h-4 rounded-full" />
+                    {w.name}
+                  </span>
                 ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-slate-400">Nobody yet</p>
+            )}
+          </div>
+          {task.createdAt && (
+            <p className="text-xs text-slate-400 pt-1">
+              Created {safeFormat(task.createdAt, "MMM d")}{task.createdByName ? ` · by ${task.createdByName}` : ""}
+            </p>
           )}
-        </div>
+        </aside>
       </div>
+      <ConfirmDialog
+        open={!!pendingStatus}
+        title="This task is blocked"
+        message={pendingStatus ? `It's waiting on ${openBlockers(task).map((b) => `"${b.title}"`).join(", ")}. Move it to ${pendingStatus} anyway?` : undefined}
+        confirmLabel="Move anyway"
+        onConfirm={() => {
+          const st = pendingStatus;
+          setPendingStatus(null);
+          if (st) void saveStatus(st);
+        }}
+        onCancel={() => setPendingStatus(null)}
+      />
       <ConfirmDialog
         open={confirmTaskDelete}
         title="Delete task?"
@@ -807,14 +910,11 @@ function DependencyList({ label, links }: { label: string; links: TaskLink[] }) 
   );
 }
 
-function PropertyRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function SideRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2 text-zinc-500 text-sm">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{value}</span>
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-slate-500 dark:text-slate-400 shrink-0">{label}</span>
+      <div className="text-right font-semibold text-slate-800 dark:text-slate-100 min-w-0">{children}</div>
     </div>
   );
 }

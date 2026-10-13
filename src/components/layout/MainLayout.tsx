@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { SearchPalette } from "./SearchPalette";
+import { PageLoader } from "@/components/ui/PageLoader";
+import { preloadPages } from "@/pages/lazyPages";
 
 export function MainLayout({ onLogout }: { onLogout: () => void }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  useEffect(preloadPages, []);
 
   // Ctrl+K (Cmd+K on Mac) opens search from anywhere
   useEffect(() => {
@@ -29,7 +33,9 @@ export function MainLayout({ onLogout }: { onLogout: () => void }) {
         <main className="flex-1 overflow-y-auto px-6 md:px-10 py-6 md:py-8">
           <div className="w-full">
             <Breadcrumbs />
-            <Outlet />
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

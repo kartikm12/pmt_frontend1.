@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { MultiSelectDropdown } from "@/components/ui/MultiSelectDropdown";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
+import { useBusy } from "@/lib/useBusy";
 import { isManager } from "@/utils/roleUtils";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { Avatar } from "@/components/ui/Avatar";
@@ -33,6 +34,7 @@ export function Projects() {
   const [newProjectEndDate, setNewProjectEndDate] = useState("");
   const [newProjectMembers, setNewProjectMembers] = useState<string[]>([]);
   const [copyFromProjectId, setCopyFromProjectId] = useState("");
+  const [creating, guard] = useBusy();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,7 +122,7 @@ export function Projects() {
     return () => window.removeEventListener("click", close);
   }, [activeMenu]);
 
-  const handleCreateProject = async (e: React.FormEvent) => {
+  const handleCreateProject = guard(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
 
@@ -164,7 +166,7 @@ export function Projects() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create project");
     }
-  };
+  });
 
   const deleteProject = async () => {
     if (!projectToDelete) return;
@@ -214,7 +216,8 @@ export function Projects() {
           copyFromId={copyFromProjectId}
           setCopyFromId={setCopyFromProjectId}
           copyOptions={allProjects}
-          submitLabel="Create Project"
+          submitLabel={creating ? "Creating…" : "Create Project"}
+          busy={creating}
         />
       )}
 
@@ -429,6 +432,7 @@ export function EditProjectModal({ project, users, onClose, onSaved }: {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     if (!editing.name.trim() || !editing.description.trim() || !editing.startDate || !editing.dueDate || !editing.teamMemberIds?.length) {
       toast.error("All project fields are required.");
       return;
@@ -475,7 +479,8 @@ export function EditProjectModal({ project, users, onClose, onSaved }: {
       memberIds={editing.teamMemberIds || []}
       setMemberIds={(ids) => setEditing({ ...editing, teamMemberIds: ids })}
       users={users}
-      submitLabel={isSaving ? "Saving..." : "Save Changes"}
+      submitLabel={isSaving ? "Saving…" : "Save Changes"}
+      busy={isSaving}
     />
   );
 }
@@ -502,6 +507,7 @@ function ProjectModal(props: {
   setCopyFromId?: (id: string) => void;
   copyOptions?: Project[];
   submitLabel: string;
+  busy?: boolean;
   isEdit?: boolean;
 }) {
   return createPortal(
@@ -586,7 +592,7 @@ function ProjectModal(props: {
             <button type="button" onClick={props.onClose} className="flex-1 px-6 py-3 btn-secondary text-sm font-bold">
               Cancel
             </button>
-            <button type="submit" className="flex-1 btn-primary font-bold py-3">
+            <button type="submit" disabled={props.busy} className="flex-1 btn-primary font-bold py-3 disabled:opacity-70">
               {props.submitLabel}
             </button>
           </div>

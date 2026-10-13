@@ -24,5 +24,20 @@ export default defineConfig(({mode}) => {
     preview: {
       allowedHosts: true,
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // Big libraries in their own files: they download in parallel and stay cached across deploys
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            if (/[\/](react|react-dom|react-router|react-router-dom|scheduler)[\/]/.test(id)) return 'react';
+            if (/[\/](motion|framer-motion|motion-dom|motion-utils)[\/]/.test(id)) return 'motion';
+            if (/[\/](socket\.io-client|engine\.io-client|socket\.io-parser|engine\.io-parser)[\/]/.test(id)) return 'socket';
+            if (/[\/](recharts|d3-[^\/]+|victory-vendor)[\/]/.test(id)) return 'charts';
+            if (/[\/]date-fns[\/]/.test(id)) return 'dates';
+          },
+        },
+      },
+    },
   };
 });

@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import type { Milestone } from "@/lib/api-types";
 import { safeFormat, isOverdue } from "@/utils/dateUtils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useBusy } from "@/lib/useBusy";
 
 // Milestones of one project with progress; managers can add, rename and delete them
 export function MilestonesBar({ projectId, milestones, canManage, onChanged }: {
@@ -17,10 +18,9 @@ export function MilestonesBar({ projectId, milestones, canManage, onChanged }: {
   const [editing, setEditing] = useState<{ id?: string; name: string; dueDate: string } | null>(null);
   const [toDelete, setToDelete] = useState<Milestone | null>(null);
   const [error, setError] = useState("");
+  const [saving, guard] = useBusy();
 
-  if (!milestones.length && !canManage) return null;
-
-  const save = async (e: React.FormEvent) => {
+  const save = guard(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing) return;
     if (!editing.name.trim()) {
@@ -35,7 +35,9 @@ export function MilestonesBar({ projectId, milestones, canManage, onChanged }: {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save the milestone");
     }
-  };
+  });
+
+  if (!milestones.length && !canManage) return null;
 
   const remove = async () => {
     const m = toDelete;
@@ -112,7 +114,7 @@ export function MilestonesBar({ projectId, milestones, canManage, onChanged }: {
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setEditing(null)} className="flex-1 btn-secondary py-2.5 text-sm font-bold">Cancel</button>
-              <button type="submit" className="flex-1 btn-primary py-2.5 text-sm font-bold">Save</button>
+              <button type="submit" disabled={saving} className="flex-1 btn-primary py-2.5 text-sm font-bold disabled:opacity-70">{saving ? "Saving…" : "Save"}</button>
             </div>
           </form>
         </div>,

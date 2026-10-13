@@ -135,6 +135,7 @@ export interface Task {
   timeEntries?: TimeEntry[];
   myRole?: ProjectRole | null;
   createdAt?: string;
+  createdByName?: string;
 }
 
 export interface LeaderboardEntry {
