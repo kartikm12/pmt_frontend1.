@@ -3,8 +3,7 @@ import { Plus, Search, Filter, MoreVertical, FolderOpen, X, Clock } from "lucide
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
-import { isPast } from "date-fns";
-import { safeFormat } from "@/utils/dateUtils";
+import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { api } from "@/lib/api";
 import type { Project, User } from "@/lib/api-types";
 import { useAuth } from "@/context/AuthContext";
@@ -26,7 +25,6 @@ export function Projects() {
   const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
@@ -60,7 +58,13 @@ export function Projects() {
     // Raw server objects usually have 'members' array instead of 'teamMemberIds' string array.
     const updatedProject = data.members ? api.mapProject(data as any) : (data as Project);
 
-    setAllProjects((prev) => 
+    // Dropped from the team: reload, since the server decides what is still visible (e.g. via task assignments)
+    if (currentUser && !isManager(currentUser.role) && !updatedProject.teamMemberIds.includes(currentUser.id)) {
+      void api.getProjects().then(setAllProjects).catch(() => undefined);
+      return;
+    }
+
+    setAllProjects((prev) =>
       prev.map((p) => 
         p.id === updatedProject.id 
           ? { ...p, ...updatedProject } 
@@ -107,6 +111,14 @@ export function Projects() {
     setActiveSearchQuery(searchQuery);
   };
 
+  // Close the card menu on any outside click
+  useEffect(() => {
+    if (!activeMenu) return;
+    const close = () => setActiveMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [activeMenu]);
+
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
@@ -122,9 +134,9 @@ export function Projects() {
       return;
     }
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    if (newProjectEndDate && newProjectEndDate < todayStr) {
-      toast.error("Deadline (End Date) must be today or a future date.");
+    const createDateError = projectDatesError(newProjectStartDate, newProjectEndDate);
+    if (createDateError) {
+      toast.error(createDateError);
       return;
     }
 
@@ -148,39 +160,6 @@ export function Projects() {
       toast.success("Project created successfully!");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create project");
-    }
-  };
-
-  const handleEditProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProject) return;
-
-    if (
-      !editingProject.name.trim() ||
-      !editingProject.description.trim() ||
-      !editingProject.startDate ||
-      !editingProject.dueDate ||
-      !editingProject.teamMemberIds?.length
-    ) {
-      toast.error("All project fields are required.");
-      return;
-    }
-
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    const projectEndDateStr = safeFormat(editingProject.dueDate, "yyyy-MM-dd");
-    if (projectEndDateStr && projectEndDateStr < todayStr) {
-      toast.error("Deadline (End Date) must be today or a future date.");
-      return;
-    }
-
-    try {
-      const updated = await api.updateProject(editingProject.id, editingProject);
-      handleProjectUpdated(updated);
-      setIsEditProjectModalOpen(false);
-      setEditingProject(null);
-      toast.success("Project updated successfully!");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update project");
     }
   };
 
@@ -233,25 +212,15 @@ export function Projects() {
         />
       )}
 
-      {isEditProjectModalOpen && editingProject && (
-        <ProjectModal
-          title="Edit Project"
-          onClose={() => setIsEditProjectModalOpen(false)}
-          onSubmit={handleEditProject}
-          name={editingProject.name}
-          setName={(value) => setEditingProject({ ...editingProject, name: value })}
-          description={editingProject.description}
-          setDescription={(value) => setEditingProject({ ...editingProject, description: value })}
-          startDate={safeFormat(editingProject.startDate, "yyyy-MM-dd")}
-          setStartDate={(value) => setEditingProject({ ...editingProject, startDate: new Date(value).toISOString() })}
-          endDate={safeFormat(editingProject.dueDate, "yyyy-MM-dd")}
-          setEndDate={(value) => setEditingProject({ ...editingProject, dueDate: new Date(value).toISOString() })}
-          status={editingProject.status}
-          setStatus={(value) => setEditingProject({ ...editingProject, status: value as Project["status"] })}
-          memberIds={editingProject.teamMemberIds || []}
-          setMemberIds={(ids) => setEditingProject({ ...editingProject, teamMemberIds: ids })}
+      {editingProject && (
+        <EditProjectModal
+          project={editingProject}
           users={users}
-          submitLabel="Save Changes"
+          onClose={() => setEditingProject(null)}
+          onSaved={(updated) => {
+            handleProjectUpdated(updated);
+            setEditingProject(null);
+          }}
         />
       )}
 
@@ -309,6 +278,7 @@ export function Projects() {
               { id: "Active", name: "Active" },
               { id: "Completed", name: "Completed" },
               { id: "On Hold", name: "On Hold" },
+              { id: "Cancelled", name: "Cancelled" },
             ]}
             selectedId={statusFilter}
             onChange={(id) => {
@@ -348,7 +318,7 @@ export function Projects() {
                     </div>
                     <div>
                       <h3 className={`text-lg font-bold transition-colors ${
-                        project.status !== "Completed" && isPast(new Date(project.dueDate))
+                        project.status !== "Completed" && isOverdue(project.dueDate)
                           ? "text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300"
                           : "text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                       }`}>
@@ -379,7 +349,6 @@ export function Projects() {
                             onClick={(e) => {
                               e.preventDefault();
                               setEditingProject({ ...project });
-                              setIsEditProjectModalOpen(true);
                               setActiveMenu(null);
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
@@ -436,6 +405,75 @@ export function Projects() {
   );
 }
 
+function projectDatesError(start: string, end: string, originalDue?: string) {
+  if (start && end && start > end) return "Start date must be on or before the end date.";
+  const endError = deadlineError(end, originalDue);
+  return endError && endError.startsWith("Deadline") ? "Deadline (End Date) must be today or a future date." : endError;
+}
+
+// Shared by the Projects list and the project's own page, so both edit with the same rules
+export function EditProjectModal({ project, users, onClose, onSaved }: {
+  project: Project;
+  users: User[];
+  onClose: () => void;
+  onSaved: (updated: Project) => void;
+}) {
+  const [editing, setEditing] = useState<Project>({ ...project });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing.name.trim() || !editing.description.trim() || !editing.startDate || !editing.dueDate || !editing.teamMemberIds?.length) {
+      toast.error("All project fields are required.");
+      return;
+    }
+    // Compare with the saved deadline so an overdue project can still be edited (e.g. marked Completed)
+    const dateError = projectDatesError(
+      safeFormat(editing.startDate, "yyyy-MM-dd", ""),
+      safeFormat(editing.dueDate, "yyyy-MM-dd", ""),
+      project.dueDate
+    );
+    if (dateError) {
+      toast.error(dateError);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const updated = await api.updateProject(editing.id, editing);
+      onSaved(updated);
+      toast.success("Project updated successfully!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update project");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <ProjectModal
+      title="Edit Project"
+      onClose={onClose}
+      onSubmit={save}
+      name={editing.name}
+      setName={(value) => setEditing({ ...editing, name: value })}
+      description={editing.description}
+      setDescription={(value) => setEditing({ ...editing, description: value })}
+      startDate={safeFormat(editing.startDate, "yyyy-MM-dd", "")}
+      // A cleared date input gives "", and new Date("").toISOString() throws and blanked the page
+      setStartDate={(value) => setEditing({ ...editing, startDate: value ? new Date(value).toISOString() : "" })}
+      endDate={safeFormat(editing.dueDate, "yyyy-MM-dd", "")}
+      setEndDate={(value) => setEditing({ ...editing, dueDate: value ? new Date(value).toISOString() : "" })}
+      isEdit
+      status={editing.status}
+      setStatus={(value) => setEditing({ ...editing, status: value as Project["status"] })}
+      memberIds={editing.teamMemberIds || []}
+      setMemberIds={(ids) => setEditing({ ...editing, teamMemberIds: ids })}
+      users={users}
+      submitLabel={isSaving ? "Saving..." : "Save Changes"}
+    />
+  );
+}
+
 function ProjectModal(props: {
   title: string;
   onClose: () => void;
@@ -454,6 +492,7 @@ function ProjectModal(props: {
   setMemberIds?: (ids: string[]) => void;
   users?: User[];
   submitLabel: string;
+  isEdit?: boolean;
 }) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300">
@@ -464,7 +503,7 @@ function ProjectModal(props: {
             <X className="w-6 h-6" />
           </button>
         </div>
-        <form onSubmit={props.onSubmit} className="p-8 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+        <form onSubmit={props.onSubmit} noValidate className="p-8 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Name</label>
             <input required value={props.name} onChange={(e) => props.setName(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" />
@@ -482,6 +521,7 @@ function ProjectModal(props: {
                   { id: "Active", name: "Active" },
                   { id: "Completed", name: "Completed" },
                   { id: "On Hold", name: "On Hold" },
+                  { id: "Cancelled", name: "Cancelled" },
                 ]}
                 selectedId={props.status}
                 onChange={(id) => props.setStatus?.(id)}
@@ -492,8 +532,9 @@ function ProjectModal(props: {
             <div className="space-y-2">
               <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Project Team</label>
               <>
-                <MultiSelectDropdown 
-                  options={props.users} 
+                <MultiSelectDropdown
+                  // Suspended people can't be newly added; ones already on the team stay listed
+                  options={props.users.filter((u) => u.status !== "Suspended" || props.memberIds?.includes(u.id))}
                   selectedIds={props.memberIds} 
                   onChange={(ids) => props.setMemberIds?.(ids)} 
                   placeholder="Search and select project members..."
@@ -512,8 +553,9 @@ function ProjectModal(props: {
               <input 
                 required 
                 type="date" 
-                value={props.endDate} 
-                min={new Date().toLocaleDateString('en-CA')}
+                value={props.endDate}
+                // On edit a past deadline must stay saveable; the browser would otherwise refuse to submit
+                min={props.isEdit ? props.startDate || undefined : new Date().toLocaleDateString('en-CA')}
                 onChange={(e) => props.setEndDate(e.target.value)} 
                 className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" 
               />

@@ -1,10 +1,13 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Paperclip, File, X, Download, Trash2, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
-import { api, API_BASE_URL, mapAttachment } from "@/lib/api";
+import { api, fileUrl, mapAttachment } from "@/lib/api";
 import type { Attachment } from "@/lib/api-types";
 import { toast } from "sonner";
 import { safeFormat } from "@/utils/dateUtils";
 import { useSocket } from "@/context/SocketContext";
+import { useAuth } from "@/context/AuthContext";
+import { isManager } from "@/utils/roleUtils";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface AttachmentSectionProps {
   projectId?: string;
@@ -27,11 +30,18 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
-export function AttachmentSection({ projectId, taskId, initialAttachments = [] }: AttachmentSectionProps) {
+// Same types the server accepts (utils/multer.ts), so the picker hides files that would be rejected
+const ACCEPTED_FILES = ".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv,.ppt,.pptx,.doc,.docx,.xls,.xlsx";
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+// One shared empty list: a fresh `[]` default each render made the effect below refetch in a loop
+const NO_ATTACHMENTS: Attachment[] = [];
+
+export function AttachmentSection({ projectId, taskId, initialAttachments = NO_ATTACHMENTS }: AttachmentSectionProps) {
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { socket } = useSocket();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     // If initialAttachments changes or if we want to refresh
@@ -76,8 +86,9 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = [] }
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 25 * 1024 * 1024) {
-      toast.error("File size exceeds 25MB limit");
+    if (file.size > MAX_FILE_BYTES) {
+      toast.error("File size exceeds the 10 MB limit");
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
@@ -96,13 +107,16 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = [] }
     }
   };
 
+  const [fileToDelete, setFileToDelete] = useState<Attachment | null>(null);
+
   const handleDelete = async (id: string) => {
+    setFileToDelete(null);
     try {
       await api.deleteAttachment(id);
       setAttachments((prev) => prev.filter((a) => a.id !== id));
       toast.success("File deleted");
     } catch (error) {
-      toast.error("Failed to delete file");
+      toast.error(error instanceof Error ? error.message : "Failed to delete file");
     }
   };
 
@@ -130,6 +144,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = [] }
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
+          accept={ACCEPTED_FILES}
           className="hidden"
         />
       </div>
@@ -158,9 +173,9 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = [] }
                   {file.user && ` • by ${file.user.name}`}
                 </p>
               </div>
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 <a
-                  href={`${API_BASE_URL.replace("/api", "")}${file.url}`}
+                  href={fileUrl(file.url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -168,18 +183,29 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = [] }
                 >
                   <Download className="w-4 h-4" />
                 </a>
-                <button
-                  onClick={() => handleDelete(file.id)}
-                  className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {(file.userId === currentUser?.id || isManager(currentUser?.role)) && (
+                  <button
+                    onClick={() => setFileToDelete(file)}
+                    className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="Delete"
+                    aria-label={`Delete ${file.name}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!fileToDelete}
+        title="Delete file?"
+        message={fileToDelete ? `"${fileToDelete.name}" will be removed for everyone.` : undefined}
+        onConfirm={() => fileToDelete && handleDelete(fileToDelete.id)}
+        onCancel={() => setFileToDelete(null)}
+      />
     </div>
   );
 }

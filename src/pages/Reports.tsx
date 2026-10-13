@@ -12,6 +12,8 @@ import { TeamPerformanceTable } from "@/components/reports/TeamPerformanceTable"
 import { WorkloadDistributionChart } from "@/components/reports/WorkloadDistributionChart";
 import { OverdueTasksList } from "@/components/reports/OverdueTasksList";
 import { GanttTimeline } from "@/components/reports/GanttTimeline";
+import { KPIOverview } from "@/components/reports/KPIOverview";
+import { ActivityTimeline } from "@/components/reports/ActivityTimeline";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 
 const MANAGER_ROLES = ["Admin", "Manager", "Project Manager"];
@@ -135,6 +137,9 @@ export function Reports() {
         </div>
       ) : reportData ? (
         <div className="space-y-6" id="printable-report-area">
+          {/* Headline numbers (the API always sent them; nothing showed them) */}
+          <KPIOverview data={reportData.kpis} />
+
           {/* Progress & Status Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 break-inside-avoid">
             <ProjectProgressChart data={reportData.projectProgress} />
@@ -153,8 +158,9 @@ export function Reports() {
           </div>
 
           {/* Timelines and Activities */}
-          <div className="w-full break-inside-avoid">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 break-inside-avoid">
              <GanttTimeline data={reportData.projectProgress} />
+             <ActivityTimeline data={reportData.recentActivity} />
           </div>
         </div>
       ) : (

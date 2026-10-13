@@ -60,21 +60,22 @@ export function AddTaskModal({
   handleBackdropClick,
   statusOnly = false
 }: AddTaskModalProps) {
-  if (!isOpen) return null;
-
   const availableUsers = React.useMemo(() => {
     if (!users) return [];
+    // Suspended people can't be newly assigned; current assignees stay listed
+    const assignable = users.filter(u => u.status !== "Suspended" || newTaskAssigneeIds?.includes(u.id));
     if (projects && newTaskProjectId) {
       const parentProject = projects.find(p => p.id === newTaskProjectId);
       if (parentProject) {
-        return users.filter(u => parentProject.teamMemberIds?.includes(u.id));
+        return assignable.filter(u => parentProject.teamMemberIds?.includes(u.id));
       }
     }
-    return users;
-  }, [users, projects, newTaskProjectId]);
+    return assignable;
+  }, [users, projects, newTaskProjectId, newTaskAssigneeIds]);
 
-  // Clear assignees that don't belong to the newly selected project
+  // Clear assignees that don't belong to the newly selected project (status-only users can't change them)
   React.useEffect(() => {
+    if (!isOpen || statusOnly) return;
     if (newTaskProjectId && newTaskAssigneeIds && setNewTaskAssigneeIds && projects && users) {
       const parentProject = projects.find(p => p.id === newTaskProjectId);
       if (parentProject) {
@@ -86,7 +87,10 @@ export function AddTaskModal({
         }
       }
     }
-  }, [newTaskProjectId, projects, users]); // Only watch project change, don't watch assignee change to avoid loops
+  }, [isOpen, newTaskProjectId, projects, users]); // Only watch project change, don't watch assignee change to avoid loops
+
+  // Hooks above must run on every render; returning before them crashed the page when the modal opened
+  if (!isOpen) return null;
 
   return createPortal(
     <div 
@@ -117,7 +121,7 @@ export function AddTaskModal({
           </button>
         </div>
         
-        <form onSubmit={handleAddTask} className="px-6 py-3 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
+        <form onSubmit={handleAddTask} noValidate className="px-6 py-3 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
           {formError && (
             <div className="p-4 text-sm font-semibold text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
               {formError}
@@ -255,7 +259,8 @@ export function AddTaskModal({
                   id="task-deadline"
                   type="date" 
                   value={newTaskDueDate}
-                  min={new Date().toLocaleDateString('en-CA')}
+                  // Only new tasks need a future date; a min on edit blocks saving an overdue task at all
+                  min={taskToEdit ? undefined : new Date().toLocaleDateString('en-CA')}
                   onChange={(e) => setNewTaskDueDate(e.target.value)}
                   className="w-full input px-4 py-3 text-sm focus:outline-none transition-all dark:text-slate-100"
                 />

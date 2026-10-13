@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from "react-router-dom";
 import { Toaster } from "sonner";
 import { MainLayout } from "./components/layout/MainLayout";
 import { Dashboard } from "./pages/Dashboard";
@@ -64,6 +64,17 @@ function AppRoutes() {
         <Route path="team" element={<Team />} />
         <Route path="settings" element={<Settings />} />
         <Route path="notifications" element={<Notifications />} />
+        {/* Unknown addresses used to render an empty page */}
+        <Route
+          path="*"
+          element={
+            <div className="text-center py-20">
+              <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Page not found</h2>
+              <p className="text-slate-500 dark:text-slate-400 mt-2">This address doesn't match any page.</p>
+              <Link to="/" className="inline-block mt-4 text-indigo-600 font-medium">Go to Dashboard</Link>
+            </div>
+          }
+        />
       </Route>
     </Routes>
   );

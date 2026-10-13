@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { Logo } from "@/components/ui/Logo";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { isEmail } from "@/lib/utils";
 
 export function Login() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -22,8 +23,22 @@ export function Login() {
     }
   }, []);
 
+  const [formError, setFormError] = useState("");
+
+  // The form uses noValidate, so every rule the browser used to enforce (with its own popup) lives here
+  const validationError = () => {
+    if (mode === "register" && fullName.trim().length < 2) return "Please enter your full name.";
+    if (!isEmail(email)) return "Please enter a valid email address.";
+    if (mode === "register" && password.length < 8) return "Password must be at least 8 characters.";
+    if (!password) return "Please enter your password.";
+    return "";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const problem = validationError();
+    setFormError(problem);
+    if (problem) return;
     setIsSubmitting(true);
 
     try {
@@ -36,7 +51,7 @@ export function Login() {
         toast.success("Account created successfully.");
       }
     } catch (error: any) {
-      toast.error(error.message || "An unexpected error occurred.");
+      setFormError(error.message || "An unexpected error occurred.");
     } finally {
       setIsSubmitting(false);
     }
@@ -62,7 +77,7 @@ export function Login() {
           </p>
         </motion.div>
 
-        <form className="space-y-5 w-full" onSubmit={handleSubmit}>
+        <form className="space-y-5 w-full" onSubmit={handleSubmit} noValidate>
           {mode === "register" && (
             <div className="space-y-1.5">
               <label htmlFor="fullName" className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
@@ -109,6 +124,7 @@ export function Login() {
                 type={showPassword ? "text" : "password"}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 required
+                minLength={mode === "register" ? 8 : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="block w-full input px-4 py-3 pr-12 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none transition-all"
@@ -117,6 +133,7 @@ export function Login() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors focus:outline-none"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -124,19 +141,28 @@ export function Login() {
             </div>
           </div>
 
+          {formError && (
+            <div role="alert" className="p-3 text-sm font-semibold text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+              {formError}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isSubmitting}
             className="flex w-full justify-center items-center gap-2 btn-primary py-3.5 px-4 text-sm font-bold disabled:opacity-70"
           >
-            {mode === "login" ? "Sign in to Dashboard" : "Create Account"}
+            {isSubmitting ? "Please wait..." : mode === "login" ? "Sign in to Dashboard" : "Create Account"}
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
         <button
           type="button"
-          onClick={() => setMode(mode === "login" ? "register" : "login")}
+          onClick={() => {
+            setMode(mode === "login" ? "register" : "login");
+            setFormError("");
+          }}
           className="mt-6 text-sm text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
         >
           {mode === "login" ? "Need an account? Register" : "Already have an account? Sign in"}

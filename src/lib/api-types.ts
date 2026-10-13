@@ -44,6 +44,7 @@ export interface Comment {
   userId: string;
   text: string;
   createdAt: string;
+  updatedAt?: string;
   user?: User;
 }
 

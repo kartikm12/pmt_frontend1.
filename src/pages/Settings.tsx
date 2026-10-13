@@ -29,6 +29,18 @@ export function Settings() {
       await refreshCurrentUser();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to upload avatar");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ""; // allow choosing the same file again
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      await api.updateMe({ avatarUrl: null });
+      await refreshCurrentUser();
+      toast.success("Profile photo removed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove photo");
     }
   };
 
@@ -43,7 +55,7 @@ export function Settings() {
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [currentPassword, setCurrentPassword] = useState(() => localStorage.getItem("current_password") || "");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -89,6 +101,14 @@ export function Settings() {
   };
 
   const handlePasswordSave = async () => {
+    if (!currentPassword) {
+      toast.error("Enter your current password");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       toast.error("New password and confirm password must match");
       return;
@@ -100,8 +120,7 @@ export function Settings() {
         currentPassword,
         newPassword
       });
-      localStorage.setItem("current_password", newPassword);
-      setCurrentPassword(newPassword);
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       toast.success("Password updated successfully");
@@ -167,28 +186,30 @@ export function Settings() {
                         className="hidden" 
                       />
                       <Avatar name={currentUser.name} src={avatarUrl} className="w-32 h-32 rounded-full border-4 border-white dark:border-slate-800 shadow-xl object-cover transition-transform duration-500" />
-                      <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                        <button 
+                      <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                        <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="p-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full transition-colors active:scale-90" 
+                          className="p-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full transition-colors active:scale-90"
                           title="Upload new photo"
+                          aria-label="Upload new photo"
                         >
                           <Pencil className="w-5 h-5 text-white" />
                         </button>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setAvatarUrl("");
-                            toast.success("Avatar removed (click Save to persist)");
-                          }} 
-                          className="p-2 bg-red-500/80 hover:bg-red-500 rounded-full transition-colors shadow-lg active:scale-90" 
-                          title="Remove photo"
-                        >
-                          <Trash2 className="w-5 h-5 text-white" />
-                        </button>
+                        {avatarUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemovePhoto}
+                            className="p-2 bg-red-500/80 hover:bg-red-500 rounded-full transition-colors shadow-lg active:scale-90"
+                            title="Remove photo"
+                            aria-label="Remove photo"
+                          >
+                            <Trash2 className="w-5 h-5 text-white" />
+                          </button>
+                        )}
                       </div>
                     </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG, GIF or WebP, up to 2 MB</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-10">

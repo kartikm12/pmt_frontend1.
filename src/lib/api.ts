@@ -72,6 +72,7 @@ export type RawTask = {
     userId: string;
     body: string;
     createdAt: string;
+    updatedAt?: string;
     user?: RawUser;
   }>;
 };
@@ -255,6 +256,7 @@ export function mapTask(raw: RawTask): Task {
         userId: comment.userId,
         text: comment.body,
         createdAt: comment.createdAt,
+        updatedAt: comment.updatedAt,
         user: comment.user ? mapUser(comment.user) : undefined
       })
     ),
@@ -294,6 +296,22 @@ export function setStoredToken(token: string | null) {
   }
 }
 
+// Turn the server's zod output into one sentence, e.g. "Full name: String must contain at least 2 character(s)"
+function readableError(data: any): string {
+  const fieldErrors: Record<string, string[]> | undefined = data?.issues?.fieldErrors;
+  const first = fieldErrors && Object.entries(fieldErrors).find(([, messages]) => messages?.length);
+  if (first) {
+    const label = first[0].replace(/Ids?$/, "").replace(/([A-Z])/g, " $1").toLowerCase().trim();
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${first[1][0]}`;
+  }
+  return data?.issues?.formErrors?.[0] || data?.message || "Request failed";
+}
+
+// Files now live in Supabase (absolute URLs); only old local uploads are server-relative
+export function fileUrl(url: string) {
+  return /^https?:\/\//.test(url) ? url : `${API_BASE_URL.replace(/\/api$/, "")}${url}`;
+}
+
 async function request<T>(path: string, options: RequestInit = {}) {
   const token = getStoredToken();
   const headers = new Headers(options.headers);
@@ -315,13 +333,20 @@ async function request<T>(path: string, options: RequestInit = {}) {
   const data = isJson ? await response.json() : null;
 
   if (!response.ok) {
-    const error: any = new Error(data?.message || "Request failed");
+    const error: any = new Error(readableError(data));
     error.issues = data?.issues;
 
-    if (response.status === 401 && data?.message === SESSION_EXPIRED_MESSAGE) {
+    // Any 401 on a signed-in request means the session is gone (expired, replaced, or account removed)
+    if (response.status === 401 && token) {
       window.dispatchEvent(
         new CustomEvent("auth:session-expired", {
-          detail: { message: "Your account was logged in from another device." }
+          detail: {
+            message: data?.message === SESSION_EXPIRED_MESSAGE
+              ? "Your account was logged in from another device."
+              : /suspended|removed from the workspace/i.test(data?.message ?? "")
+                ? data.message
+                : "Your session has ended. Please sign in again."
+          }
         })
       );
     }
@@ -641,6 +666,7 @@ export const api = {
       fullName?: string;
       role?: User["role"];
       title?: string;
+      status?: "Active" | "Suspended";
       projectId?: string;
     }
   ) {
@@ -662,6 +688,7 @@ export const api = {
         fullName: payload.fullName,
         role: payload.role ? roleMap[payload.role] : undefined,
         title: payload.title,
+        status: payload.status ? payload.status.toUpperCase() : undefined,
         projectId: payload.projectId
       })
     });
@@ -681,6 +708,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ body })
     });
+  },
+
+  async updateComment(commentId: string, body: string) {
+    return request<{ id: string; body: string; updatedAt: string }>(`/tasks/comments/${commentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ body })
+    });
+  },
+
+  async deleteComment(commentId: string) {
+    return request(`/tasks/comments/${commentId}`, { method: "DELETE" });
   },
 
   mapActivity,

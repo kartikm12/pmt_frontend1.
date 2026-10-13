@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { User } from "@/lib/api-types";
 import { api, getStoredToken, setStoredToken } from "@/lib/api";
 
@@ -49,40 +49,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("auth:session-expired", handleSessionExpired);
   }, []);
 
+  // Errors (e.g. wrong password) propagate to the form, which shows them
   const login = async (email: string, password: string) => {
-    try {
-      const response = await api.login(email, password);
-      setCurrentUser(response.user);
-      localStorage.setItem("current_password", password);
-      return true;
-    } catch (error) {
-      console.error("[AUTH_DEBUG] Login error:", error);
-      throw error;
-    }
+    const response = await api.login(email, password);
+    setCurrentUser(response.user);
+    return true;
   };
 
+  // Errors (e.g. email already registered) propagate so the form can show them
   const register = async (fullName: string, email: string, password: string) => {
-    try {
-      const response = await api.register(fullName, email, password);
-      setCurrentUser(response.user);
-      localStorage.setItem("current_password", password);
-      return true;
-    } catch {
-      return false;
-    }
+    const response = await api.register(fullName, email, password);
+    setCurrentUser(response.user);
+    return true;
   };
 
-  const logout = (options?: { skipServer?: boolean; message?: string }) => {
+  // Stable identity: SocketProvider reconnects whenever logout changes
+  const logout = useCallback((options?: { skipServer?: boolean; message?: string }) => {
     if (!options?.skipServer && getStoredToken()) {
       void api.logout().catch(() => undefined);
     }
     setStoredToken(null);
-    localStorage.removeItem("current_password");
+    localStorage.removeItem("current_password"); // clears plain-text passwords saved by older builds
     setCurrentUser(null);
     if (options?.message) {
       sessionStorage.setItem("auth_notice", options.message);
     }
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ currentUser, isLoading, login, register, logout, refreshCurrentUser }}>

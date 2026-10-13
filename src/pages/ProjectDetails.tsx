@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Plus, MoreHorizontal, Calendar, MessageSquare, Paperclip, X, Edit2 } from "lucide-react";
+import { Plus, Calendar, Paperclip, Edit2, Trash2 } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EditProjectModal } from "@/pages/Projects";
 import { toast } from "sonner";
-import { isPast } from "date-fns";
 import { AddTaskModal } from "@/components/AddTaskModal";
 import { api, API_BASE_URL } from "@/lib/api";
 import type { Project, Task, TaskPriority, TaskStatus, User, Attachment } from "@/lib/api-types";
-import { safeFormat } from "@/utils/dateUtils";
+import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { useNavigation } from "@/context/NavigationContext";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
@@ -41,9 +43,16 @@ export function ProjectDetails() {
   const isManager = ["Manager", "Project Manager", "Admin"].includes(currentUser?.role ?? "");
   const { socket, joinProject, leaveProject } = useSocket();
 
+  const [loadError, setLoadError] = useState("");
+  const [isEditingProject, setIsEditingProject] = useState(false);
+  const [confirmProjectDelete, setConfirmProjectDelete] = useState(false);
+  const deletingProjectRef = useRef(false); // our own delete shouldn't also trigger the "was deleted" notice
+
   useEffect(() => {
     async function load() {
       if (!id) return;
+      setProject(null);
+      setLoadError("");
 
       try {
         const [bundle, projectsData, teamData] = await Promise.all([
@@ -64,7 +73,7 @@ export function ProjectDetails() {
           return merged;
         });
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load project");
+        setLoadError(error instanceof Error ? error.message : "Failed to load project");
       }
     }
 
@@ -84,6 +93,8 @@ export function ProjectDetails() {
   useEffect(() => {
     if (socket) {
       const handleTaskCreated = (data: any) => {
+        // This socket may also be in other project rooms (e.g. Leaderboard filter)
+        if (data.projectId !== id) return;
         api.getTask(data.taskId).then(fullTask => {
           setTasks((current) => {
             if (current.some((t) => t.id === fullTask.id)) return current;
@@ -128,21 +139,41 @@ export function ProjectDetails() {
         }
       };
 
+      const handleProjectDeleted = (data: { projectId: string }) => {
+        if (data.projectId !== id || deletingProjectRef.current) return;
+        toast.info("This project was deleted");
+        navigate("/projects");
+      };
+
       socket.on("task_created", handleTaskCreated);
       socket.on("task_updated", handleTaskUpdated);
       socket.on("task_deleted", handleTaskDeleted);
       socket.on("project_updated", handleProjectUpdated);
+      socket.on("project_deleted", handleProjectDeleted);
 
       return () => {
         socket.off("task_created", handleTaskCreated);
         socket.off("task_updated", handleTaskUpdated);
         socket.off("task_deleted", handleTaskDeleted);
         socket.off("project_updated", handleProjectUpdated);
+        socket.off("project_deleted", handleProjectDeleted);
       };
     }
-  }, [socket]);
+  }, [socket, id]);
 
   const userMap = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+
+  if (loadError) {
+    return (
+      <div className="text-center py-20">
+        <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Project not available</h2>
+        <p className="text-slate-500 dark:text-slate-400 mt-2">{loadError}</p>
+        <button onClick={() => navigate("/projects")} className="mt-4 text-indigo-600 font-medium">
+          Back to projects
+        </button>
+      </div>
+    );
+  }
 
   if (!project) {
     return <div className="text-slate-500 dark:text-slate-400">Loading project...</div>;
@@ -181,19 +212,14 @@ export function ProjectDetails() {
       return;
     }
 
-    if (!newTaskDueDate) {
-      setFormError("Please select a deadline.");
-      return;
-    }
-
     if (!newTaskAssigneeIds.length) {
       setFormError("Please assign at least one team member.");
       return;
     }
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    if (newTaskDueDate && newTaskDueDate < todayStr) {
-      setFormError("Deadline must be today or a future date.");
+    const dateError = deadlineError(newTaskDueDate, taskToEdit?.dueDate);
+    if (dateError) {
+      setFormError(dateError);
       return;
     }
 
@@ -240,6 +266,37 @@ export function ProjectDetails() {
 
 
 
+  // Dropping a card on another column changes its status (anyone who can see the task may do that).
+  // shortcut: order inside a column isn't saved (it follows the server's sort); add sortOrder writes if people ask for it
+  const handleDragEnd = async ({ draggableId, source, destination }: DropResult) => {
+    if (!destination || destination.droppableId === source.droppableId) return;
+    const newStatus = destination.droppableId as TaskStatus;
+    const before = tasks;
+    setTasks((prev) => prev.map((t) => (t.id === draggableId ? { ...t, status: newStatus } : t)));
+    try {
+      const updated = await api.updateTask(draggableId, { status: newStatus });
+      setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      toast.success(`Moved to ${newStatus}`);
+    } catch (error) {
+      setTasks(before);
+      toast.error(error instanceof Error ? error.message : "Couldn't move the task");
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    setConfirmProjectDelete(false);
+    if (!id) return;
+    try {
+      deletingProjectRef.current = true;
+      await api.deleteProject(id);
+      toast.success("Project deleted");
+      navigate("/projects");
+    } catch (error) {
+      deletingProjectRef.current = false;
+      toast.error(error instanceof Error ? error.message : "Failed to delete project");
+    }
+  };
+
   const deleteTask = async () => {
     if (!taskToDeleteId) return;
 
@@ -256,17 +313,25 @@ export function ProjectDetails() {
 
   return (
     <div className="h-full flex flex-col animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-10">
+      <div className="flex flex-wrap items-center justify-between gap-6 mb-10">
         <div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <h1 className={`text-4xl font-black tracking-tight ${
-              project.status !== "Completed" && isPast(new Date(project.dueDate))
+              project.status !== "Completed" && isOverdue(project.dueDate)
                 ? "text-red-600 dark:text-red-400"
                 : "text-slate-900 dark:text-white"
             }`}>
               {project.name}
             </h1>
-            <span className="inline-flex items-center px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/10">
+            <span className={`inline-flex items-center px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border ${
+              project.status === "Active"
+                ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                : project.status === "Completed"
+                  ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                  : project.status === "Cancelled"
+                    ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-900/40"
+                    : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/40"
+            }`}>
               {project.status}
             </span>
           </div>
@@ -281,12 +346,47 @@ export function ProjectDetails() {
               ) : null;
             })}
           </div>
-          <button onClick={() => openModal("To Do")} className="btn-primary flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            New Task
-          </button>
+          {isManager && (
+            <>
+              <button onClick={() => setIsEditingProject(true)} className="btn-secondary px-4 py-2.5 flex items-center gap-2 text-sm font-bold">
+                <Edit2 className="w-4 h-4" />
+                Edit Project
+              </button>
+              <button
+                onClick={() => setConfirmProjectDelete(true)}
+                className="px-4 py-2.5 flex items-center gap-2 text-sm font-bold rounded-xl border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+              <button onClick={() => openModal("To Do")} className="btn-primary flex items-center gap-2">
+                <Plus className="w-5 h-5" />
+                New Task
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {isEditingProject && (
+        <EditProjectModal
+          project={project}
+          users={users}
+          onClose={() => setIsEditingProject(false)}
+          onSaved={(updated) => {
+            setProject((prev) => (prev ? { ...prev, ...updated } : prev));
+            setEntityName(updated.id, updated.name); // keep the breadcrumb in step with a rename
+            setIsEditingProject(false);
+          }}
+        />
+      )}
+      <ConfirmDialog
+        open={confirmProjectDelete}
+        title="Delete project?"
+        message={`"${project.name}" and all its tasks will be removed for everyone.`}
+        onConfirm={handleDeleteProject}
+        onCancel={() => setConfirmProjectDelete(false)}
+      />
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
@@ -319,6 +419,7 @@ export function ProjectDetails() {
 
       {activeTab === "board" ? (
         <div className="flex-1 overflow-x-auto pb-8 custom-scrollbar">
+          <DragDropContext onDragEnd={handleDragEnd}>
           <div className="flex gap-6 h-full min-w-max p-1">
             {COLUMNS.map((column) => (
               <div key={column} className="w-[320px] flex flex-col group/column h-full">
@@ -332,37 +433,70 @@ export function ProjectDetails() {
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-4 min-h-[200px] transition-colors rounded-2xl p-1">
+                <Droppable droppableId={column}>
+                  {(dropProvided, dropSnapshot) => (
+                <div
+                  ref={dropProvided.innerRef}
+                  {...dropProvided.droppableProps}
+                  data-column={column}
+                  className={`flex-1 min-h-[200px] transition-colors rounded-2xl p-1 ${
+                    dropSnapshot.isDraggingOver ? "bg-indigo-50/70 dark:bg-indigo-900/20 ring-2 ring-indigo-300/60 dark:ring-indigo-700/50" : ""
+                  }`}
+                >
                   {tasks
                     .filter((task) => task.status === column)
-                    .map((task) => (
+                    .map((task, index) => (
+                      <React.Fragment key={task.id}>
+                      <Draggable draggableId={task.id} index={index}>
+                        {(dragProvided, dragSnapshot) => (
                       <div
-                        key={task.id}
+                        ref={dragProvided.innerRef}
+                        {...dragProvided.draggableProps}
+                        {...dragProvided.dragHandleProps}
+                        data-task-id={task.id}
                         onClick={() => navigate(`/tasks/${task.id}`)}
-                        className="card p-5 h-[180px] flex flex-col justify-between hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all group cursor-pointer border border-slate-100 dark:border-slate-800/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm"
+                        // mb-4 instead of the list's space-y: the drag library measures each card's own margin
+                        // no transition-all: it would animate the library's drag transforms and make cards lag
+                        className={`card p-5 mb-4 h-[180px] flex flex-col justify-between hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-[box-shadow,border-color] group cursor-pointer border border-slate-100 dark:border-slate-800/50 bg-white dark:bg-slate-900 ${
+                          dragSnapshot.isDragging ? "shadow-2xl ring-2 ring-indigo-400 rotate-1" : ""
+                        }`}
                       >
                         <div>
                           <div className="flex justify-between items-start gap-4 mb-4">
                             <h4 className={`font-bold text-sm line-clamp-2 transition-colors leading-relaxed ${
                               task.status === "Completed"
                                 ? "text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-500"
-                                : isPast(new Date(task.dueDate))
+                                : isOverdue(task.dueDate)
                                   ? "text-red-600 dark:text-red-400 group-hover:text-red-500"
                                   : "text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                             }`}>
                               {task.title}
                             </h4>
                             {isManager && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openModal(task.status, task);
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                title="Edit Task"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center shrink-0 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-all">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openModal(task.status, task);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                                  title="Edit Task"
+                                  aria-label={`Edit ${task.title}`}
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTaskToDeleteId(task.id);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                  title="Delete Task"
+                                  aria-label={`Delete ${task.title}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             )}
                           </div>
                           <div className="flex flex-wrap gap-2 mb-5">
@@ -402,11 +536,18 @@ export function ProjectDetails() {
                           </div>
                         </div>
                       </div>
+                        )}
+                      </Draggable>
+                      </React.Fragment>
                     ))}
+                  {dropProvided.placeholder}
                 </div>
+                  )}
+                </Droppable>
               </div>
             ))}
           </div>
+          </DragDropContext>
         </div>
       ) : activeTab === "team" ? (
         <div className="flex-1 card overflow-hidden transition-all">
@@ -459,29 +600,13 @@ export function ProjectDetails() {
         </div>
       )}
 
-      {taskToDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-300">
-          <div className="card w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
-            <div className="p-8 text-center space-y-5">
-              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto">
-                <X className="w-8 h-8 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Delete Task?</h2>
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">Are you sure you want to delete this task? This action cannot be undone.</p>
-              </div>
-              <div className="pt-4 flex gap-4">
-                <button onClick={() => setTaskToDeleteId(null)} className="flex-1 btn-secondary">
-                  Cancel
-                </button>
-                <button onClick={deleteTask} className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-sm text-sm font-bold transition-all">
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!taskToDeleteId}
+        title="Delete Task?"
+        message="Are you sure you want to delete this task? This action cannot be undone."
+        onConfirm={deleteTask}
+        onCancel={() => setTaskToDeleteId(null)}
+      />
 
       <AddTaskModal
         isOpen={isModalOpen}

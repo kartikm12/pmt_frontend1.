@@ -23,16 +23,27 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const token = getStoredToken();
 
     if (currentUser && token) {
-      // Determine socket URL based on hostname
-      let hostname = window.location.hostname;
-      const socketUrl = import.meta.env.VITE_SOCKET_URL || 
-        (hostname === 'localhost' || hostname === '127.0.0.1' ? `http://${hostname}:4000` : '/');
+      // Determine socket URL: use explicit env var, or derive from API URL, or fallback to localhost
+      const getSocketUrl = () => {
+        if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
+        if (import.meta.env.VITE_API_URL) {
+          // Strip /api suffix to get base URL (e.g. https://pmt-backend.onrender.com/api -> https://pmt-backend.onrender.com)
+          return import.meta.env.VITE_API_URL.replace(/\/api$/, '');
+        }
+        const hostname = window.location.hostname;
+        return hostname === 'localhost' || hostname === '127.0.0.1'
+          ? `http://${hostname}:4000`
+          : '/';
+      };
 
-      const newSocket = io(socketUrl, {
+      const newSocket = io(getSocketUrl(), {
         auth: { token },
         reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        // Keep trying (waits grow to 10 s): a deploy or a sleeping free-tier server takes longer than
+        // the old 5 attempts (~20 s), after which live updates silently stopped until a page refresh
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 10000
       });
 
       newSocket.on("connect", () => {
