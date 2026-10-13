@@ -59,6 +59,8 @@ export function Notifications() {
         navigate(`/tasks/${n.taskId}`);
       } else if (n.projectId) {
         navigate(`/projects/${n.projectId}`);
+      } else if (n.title === "Sign-up waiting for approval") {
+        navigate("/team");
       }
     } catch (error) {
       console.error("Failed to process notification click", error);

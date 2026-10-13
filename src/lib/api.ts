@@ -451,14 +451,29 @@ export const api = {
     return { token: response.token, user: mapUser(response.user) };
   },
 
+  // After the first account, sign-ups wait for a manager: the server answers { pending: true } and no token
   async register(fullName: string, email: string, password: string) {
-    const response = await request<{ token: string; user: RawUser }>("/auth/register", {
+    const response = await request<{ token: string | null; user: RawUser; pending?: boolean; message?: string }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ fullName, email, password })
     });
-
+    if (response.pending || !response.token) {
+      return { pending: true as const, message: response.message ?? "Your account is waiting for a manager's approval." };
+    }
     setStoredToken(response.token);
-    return { token: response.token, user: mapUser(response.user) };
+    return { pending: false as const, token: response.token, user: mapUser(response.user) };
+  },
+
+  async getPendingSignups() {
+    return request<Array<{ id: string; fullName: string; email: string; createdAt: string }>>("/team/pending");
+  },
+
+  async approveSignup(userId: string, role: User["role"]) {
+    return request(`/team/${userId}/approve`, { method: "POST", body: JSON.stringify({ role: REVERSE_ROLE_MAP[role] }) });
+  },
+
+  async rejectSignup(userId: string) {
+    return request(`/team/${userId}/pending`, { method: "DELETE" });
   },
 
   async me() {

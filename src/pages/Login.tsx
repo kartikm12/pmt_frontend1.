@@ -24,6 +24,7 @@ export function Login() {
   }, []);
 
   const [formError, setFormError] = useState("");
+  const [pendingNotice, setPendingNotice] = useState("");
 
   // The form uses noValidate, so every rule the browser used to enforce (with its own popup) lives here
   const validationError = () => {
@@ -42,13 +43,18 @@ export function Login() {
     setIsSubmitting(true);
 
     try {
-      const success =
-        mode === "login"
-          ? await login(email, password)
-          : await register(fullName, email, password);
-
-      if (success && mode === "register") {
-        toast.success("Account created successfully.");
+      if (mode === "login") {
+        await login(email, password);
+      } else {
+        const result = await register(fullName, email, password);
+        if (result.pending) {
+          // Account saved but not usable yet: back to sign-in with a clear note
+          setPendingNotice(result.message ?? "Your account is waiting for a manager's approval.");
+          setMode("login");
+          setPassword("");
+        } else {
+          toast.success("Account created successfully.");
+        }
       }
     } catch (error: any) {
       setFormError(error.message || "An unexpected error occurred.");
@@ -141,6 +147,11 @@ export function Login() {
             </div>
           </div>
 
+          {pendingNotice && !formError && (
+            <div role="status" className="p-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800">
+              Thanks for signing up. {pendingNotice}
+            </div>
+          )}
           {formError && (
             <div role="alert" className="p-3 text-sm font-semibold text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
               {formError}

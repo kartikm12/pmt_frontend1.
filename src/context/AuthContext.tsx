@@ -6,7 +6,7 @@ interface AuthContextType {
   currentUser: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (fullName: string, email: string, password: string) => Promise<boolean>;
+  register: (fullName: string, email: string, password: string) => Promise<{ pending: boolean; message?: string }>;
   logout: (options?: { skipServer?: boolean; message?: string }) => void;
   refreshCurrentUser: () => Promise<void>;
 }
@@ -59,8 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Errors (e.g. email already registered) propagate so the form can show them
   const register = async (fullName: string, email: string, password: string) => {
     const response = await api.register(fullName, email, password);
+    if (response.pending) return { pending: true, message: response.message };
     setCurrentUser(response.user);
-    return true;
+    return { pending: false };
   };
 
   // Stable identity: SocketProvider reconnects whenever logout changes

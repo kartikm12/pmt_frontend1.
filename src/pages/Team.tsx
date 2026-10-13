@@ -11,6 +11,7 @@ import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { Avatar } from "@/components/ui/Avatar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { WorkloadPanel } from "@/components/team/WorkloadPanel";
+import { PendingSignups } from "@/components/team/PendingSignups";
 
 const ROLE_OPTIONS: User["role"][] = [
   "Manager",
@@ -85,18 +86,18 @@ export function Team() {
     }
   };
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [teamData, projectsData] = await Promise.all([api.getTeam(), api.getProjects()]);
-        setTeamMembers(teamData as User[]);
-        setAllProjects(projectsData);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to load team");
-      }
+  const loadTeam = async () => {
+    try {
+      const [teamData, projectsData] = await Promise.all([api.getTeam(), api.getProjects()]);
+      setTeamMembers(teamData as User[]);
+      setAllProjects(projectsData);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load team");
     }
+  };
 
-    void load();
+  useEffect(() => {
+    void loadTeam();
   }, []);
 
   const filteredUsers = useMemo(() => {
@@ -333,6 +334,10 @@ export function Team() {
           </div>,
           document.body
         )}
+
+      {isManager(currentUser?.role) && (
+        <PendingSignups roleOptions={ROLE_OPTIONS.filter((role) => isAdmin || role !== "Admin")} onApproved={() => void loadTeam()} />
+      )}
 
       {isManager(currentUser?.role) && (
         <div role="tablist" className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl -mb-4">
