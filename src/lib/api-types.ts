@@ -24,6 +24,7 @@ export interface User {
   title?: string;
   roleLocked?: boolean;
   status?: UserStatus;
+  emailNotifications?: boolean;
   projects?: Project[];
 }
 

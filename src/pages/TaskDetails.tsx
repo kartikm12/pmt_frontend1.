@@ -35,6 +35,7 @@ import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 export function TaskDetails() {
   const { id } = useParams();
@@ -424,9 +425,7 @@ export function TaskDetails() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <PageLoader />
     );
   }
 

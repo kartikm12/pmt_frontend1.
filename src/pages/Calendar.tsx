@@ -9,6 +9,7 @@ import { deadlineError, safeFormat } from "@/utils/dateUtils";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const STATUS_DOT: Record<string, string> = {
   "To Do": "bg-slate-400",
@@ -154,6 +155,7 @@ export function Calendar() {
         </div>
       </div>
 
+      {isLoading ? <div className="card"><PageLoader /></div> : (
       <div className="card p-2 sm:p-4 overflow-x-auto">
         <div className="min-w-[720px]">
           <div className="grid grid-cols-7 mb-1">
@@ -218,6 +220,7 @@ export function Calendar() {
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 px-1">Drag a task to another day to move its deadline (project managers only).</p>
         </div>
       </div>
+      )}
     </div>
   );
 }

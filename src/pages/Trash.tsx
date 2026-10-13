@@ -4,6 +4,7 @@ import { FolderKanban, RotateCcw, CheckSquare, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 type TrashData = Awaited<ReturnType<typeof api.getTrash>>;
 const KEEP_DAYS = 30;
@@ -50,7 +51,7 @@ export function Trash() {
       {error ? (
         <div role="alert" className="card p-8 text-red-600">{error}</div>
       ) : !data ? (
-        <div className="card p-8 text-slate-500">Loading…</div>
+        <PageLoader />
       ) : empty ? (
         <div className="card p-16 text-center">
           <Trash2 className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />

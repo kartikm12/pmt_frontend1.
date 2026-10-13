@@ -24,15 +24,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    try {
-      const user = await api.me();
-      setCurrentUser(user);
-    } catch {
-      setStoredToken(null);
-      setCurrentUser(null);
-    } finally {
-      setIsLoading(false);
+    // Only a server that rejects the session signs you out. A failed or cancelled request (network blip,
+    // page reloaded mid-request, server waking up) used to delete the sign-in too; now it retries for ~1 min.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const user = await api.me();
+        setCurrentUser(user);
+        break;
+      } catch (error: any) {
+        const rejected = error?.status === 401 || error?.status === 403 || error?.status === 404;
+        if (rejected || attempt >= 7) {
+          if (rejected) setStoredToken(null);
+          setCurrentUser(null);
+          break;
+        }
+        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 15000)));
+      }
     }
+    setIsLoading(false);
   };
 
   useEffect(() => {

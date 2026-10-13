@@ -15,8 +15,8 @@ import { api } from "@/lib/api";
 import type { Project, Task, User } from "@/lib/api-types";
 import { safeFormat, isOverdue } from "@/utils/dateUtils";
 import { useSocket } from "@/context/SocketContext";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { Avatar } from "@/components/ui/Avatar";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -84,6 +84,8 @@ export function Dashboard() {
   }, [socket]);
 
   const [projects, setProjects] = useState<Project[]>([]);
+
+  if (isLoading) return <PageLoader />;
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -163,14 +165,7 @@ export function Dashboard() {
             </div>
             <div className="divide-y divide-slate-200 dark:divide-slate-800">
               {isLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="p-6 flex items-center justify-between">
-                    <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-1/3" />
-                      <Skeleton className="h-3 w-2/3 mt-2" />
-                    </div>
-                  </div>
-                ))
+                <PageLoader compact />
               ) : (
                 projects.slice(0, 5).map((project) => (
                   <div

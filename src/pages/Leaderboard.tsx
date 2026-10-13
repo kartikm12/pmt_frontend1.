@@ -8,6 +8,7 @@ import { useSocket } from "@/context/SocketContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const PERIODS = [
   { label: "Today", value: 1 },
@@ -153,10 +154,7 @@ export function Leaderboard() {
       )}
 
       {isLoading ? (
-        <div className="card p-16 flex flex-col items-center gap-3 text-slate-500">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          Working out the scores…
-        </div>
+        <PageLoader />
       ) : data.length === 0 ? (
         <div className="card p-16 flex flex-col items-center text-center">
           <Target className="w-12 h-12 text-slate-300 dark:text-slate-700 mb-4" />

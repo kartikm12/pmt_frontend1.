@@ -13,6 +13,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { WorkloadPanel } from "@/components/team/WorkloadPanel";
 import { useBusy } from "@/lib/useBusy";
 import { PendingSignups } from "@/components/team/PendingSignups";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const ROLE_OPTIONS: User["role"][] = [
   "Manager",
@@ -88,6 +89,7 @@ export function Team() {
     }
   });
 
+  const [teamLoaded, setTeamLoaded] = useState(false);
   const loadTeam = async () => {
     try {
       const [teamData, projectsData] = await Promise.all([api.getTeam(), api.getProjects()]);
@@ -95,6 +97,8 @@ export function Team() {
       setAllProjects(projectsData);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load team");
+    } finally {
+      setTeamLoaded(true);
     }
   };
 
@@ -180,6 +184,8 @@ export function Team() {
       setMemberToDelete(null);
     }
   });
+
+  if (!teamLoaded) return <PageLoader />;
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500">

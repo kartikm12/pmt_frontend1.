@@ -7,6 +7,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link } from "react-ro
 import { Toaster } from "sonner";
 import { MainLayout } from "./components/layout/MainLayout";
 import { Login } from "./pages/Login";
+import { ForgotPassword, ResetPassword } from "./pages/PasswordReset";
 import { Pages } from "./pages/lazyPages";
 
 const { Dashboard, Projects, ProjectDetails, Tasks, TaskDetails, Reports, Leaderboard, Team, Settings, Notifications, Calendar, Trash, AuditLog } = Pages;
@@ -17,6 +18,7 @@ import { SocketProvider, useSocket } from "./context/SocketContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 function AppRoutes() {
   const { currentUser, logout, isLoading } = useAuth();
@@ -27,9 +29,7 @@ function AppRoutes() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <PageLoader fullScreen />
     );
   }
 
@@ -41,6 +41,9 @@ function AppRoutes() {
           isAuthenticated ? <Navigate to="/" replace /> : <Login />
         } 
       />
+      {/* Password reset works signed in or out: the link comes from an email */}
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route 
         path="/" 
         element={

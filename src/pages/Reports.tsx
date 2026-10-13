@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Download, Filter, RefreshCw } from "lucide-react";
+import { Download, Filter } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Project, User } from "@/lib/api-types";
 
@@ -17,6 +17,7 @@ import { ActivityTimeline } from "@/components/reports/ActivityTimeline";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { EffortTable } from "@/components/reports/EffortTable";
 import { downloadCsv } from "@/lib/csv";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const MANAGER_ROLES = ["Admin", "Manager", "Project Manager"];
 
@@ -144,10 +145,7 @@ export function Reports() {
 
       {/* Main Content Areas */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center p-20 space-y-4">
-           <RefreshCw className="w-10 h-10 text-indigo-500 animate-spin" />
-           <p className="text-slate-500 font-medium tracking-tight animate-pulse">Compiling report data...</p>
-        </div>
+        <PageLoader />
       ) : reportData ? (
         <div className="space-y-6" id="printable-report-area">
           {/* Headline numbers (the API always sent them; nothing showed them) */}

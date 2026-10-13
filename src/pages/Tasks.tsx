@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LabelChip } from "@/components/ui/LabelChip";
 import { emptyPlanning, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
 import { downloadCsv } from "@/lib/csv";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const STATUSES: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 
@@ -465,7 +466,7 @@ export function Tasks() {
 
       <div className="card overflow-hidden">
         {isLoading ? (
-          <div className="p-10 text-zinc-500 dark:text-zinc-400">Loading tasks...</div>
+          <PageLoader compact />
         ) : filteredTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24">
             <div className="w-16 h-16 bg-zinc-50 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">

@@ -8,6 +8,7 @@ import { safeFormat } from "@/utils/dateUtils";
 import { downloadCsv } from "@/lib/csv";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { useAuth } from "@/context/AuthContext";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 type Entry = Awaited<ReturnType<typeof api.getAuditLog>>[number];
 const PAGE = 100;
@@ -125,6 +126,7 @@ function AuditLogView() {
 
       {error && <div role="alert" className="card p-4 text-sm font-semibold text-red-600">{error}</div>}
 
+      {isLoading && !entries.length ? <div className="card"><PageLoader compact /></div> : (
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -161,6 +163,7 @@ function AuditLogView() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

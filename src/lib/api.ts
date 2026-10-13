@@ -51,6 +51,7 @@ export type RawUser = {
     | "ADMIN";
   roleLocked?: boolean;
   status?: "ACTIVE" | "INVITED" | "OFFLINE" | "SUSPENDED";
+  emailNotifications?: boolean;
 };
 
 export type RawProject = {
@@ -154,6 +155,7 @@ export function mapUser(raw: RawUser): User {
     email: raw.email,
     role: roleMap[raw.role],
     roleLocked: raw.roleLocked,
+    emailNotifications: raw.emailNotifications,
     avatar: createAvatar(raw.fullName, raw.avatarUrl),
     bio: raw.bio ?? undefined,
     phone: raw.phone ?? undefined,
@@ -395,6 +397,7 @@ async function send<T>(path: string, options: RequestInit = {}) {
   if (!response.ok) {
     const error: any = new Error(readableError(data));
     error.issues = data?.issues;
+    error.status = response.status;
 
     // Any 401 on a signed-in request means the session is gone (expired, replaced, or account removed)
     if (response.status === 401 && token) {
@@ -481,6 +484,14 @@ export const api = {
     return { pending: false as const, token: response.token, user: mapUser(response.user) };
   },
 
+  async forgotPassword(email: string) {
+    return request<{ message: string }>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+  },
+
+  async resetPassword(token: string, password: string) {
+    return request<{ message: string }>("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) });
+  },
+
   async getPendingSignups() {
     return request<Array<{ id: string; fullName: string; email: string; createdAt: string }>>("/team/pending");
   },
@@ -511,6 +522,7 @@ export const api = {
     phone?: string;
     title?: string;
     avatarUrl?: string | null;
+    emailNotifications?: boolean;
   }) {
     const response = await request<RawUser>("/users/me", {
       method: "PUT",

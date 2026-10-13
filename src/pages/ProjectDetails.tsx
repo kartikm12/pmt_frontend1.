@@ -19,6 +19,7 @@ import { LabelChip } from "@/components/ui/LabelChip";
 import { MilestonesBar } from "@/components/project/MilestonesBar";
 import { ProjectTimeline } from "@/components/project/ProjectTimeline";
 import { ProjectActivity } from "@/components/project/ProjectActivity";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 const COLUMNS: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 const TABS = [
@@ -218,7 +219,7 @@ export function ProjectDetails() {
   }
 
   if (!project) {
-    return <div className="text-slate-500 dark:text-slate-400">Loading project...</div>;
+    return <PageLoader />;
   }
 
   // Per-project role from the server: managers plan, contributors move cards, viewers only look

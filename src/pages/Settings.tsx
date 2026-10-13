@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import React, { useEffect, useRef, useState } from "react";
-import { User, Lock, Palette, Keyboard, Eye, EyeOff, Sun, Moon, Monitor, Camera, Trash2 } from "lucide-react";
+import { User, Lock, Palette, Keyboard, Eye, EyeOff, Sun, Moon, Monitor, Camera, Trash2, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -8,11 +8,12 @@ import { useTheme } from "@/context/ThemeContext";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 
-type Tab = "profile" | "password" | "appearance" | "shortcuts";
+type Tab = "profile" | "password" | "notifications" | "appearance" | "shortcuts";
 
 const TABS: Array<{ id: Tab; label: string; icon: typeof User }> = [
   { id: "profile", label: "Profile", icon: User },
   { id: "password", label: "Password", icon: Lock },
+  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard }
 ];
@@ -35,6 +36,9 @@ export function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isSavingEmailPref, setIsSavingEmailPref] = useState(false);
+  // Shown at once when clicked; put back if saving fails
+  const [emailPref, setEmailPref] = useState<boolean | null>(null);
 
   const resetProfile = () => {
     if (!currentUser) return;
@@ -235,6 +239,45 @@ export function Settings() {
                 </button>
               </div>
             </form>
+          )}
+
+          {activeTab === "notifications" && (
+            <section className="card p-6 space-y-5" aria-label="Notifications">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Email notifications</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">In-app notifications always stay on. Account emails (password resets, approval) are always sent.</p>
+              </div>
+              <label className="flex items-start justify-between gap-6 p-4 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer">
+                <span>
+                  <span className="block font-semibold text-slate-900 dark:text-white">Email me about my work</span>
+                  <span className="block text-sm text-slate-500 dark:text-slate-400 mt-0.5">When a task is assigned to me, is due tomorrow or overdue, when someone @mentions me, and (for managers) when someone signs up.</span>
+                </span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Email me about my work"
+                  checked={emailPref ?? currentUser.emailNotifications !== false}
+                  disabled={isSavingEmailPref}
+                  onChange={async (e) => {
+                    const on = e.target.checked;
+                    setEmailPref(on);
+                    setIsSavingEmailPref(true);
+                    try {
+                      await api.updateMe({ emailNotifications: on });
+                      await refreshCurrentUser();
+                      setEmailPref(null);
+                      toast.success(on ? "Notification emails are on" : "Notification emails are off");
+                    } catch (error) {
+                      setEmailPref(!on);
+                      toast.error(error instanceof Error ? error.message : "Couldn't save the setting");
+                    } finally {
+                      setIsSavingEmailPref(false);
+                    }
+                  }}
+                  className="mt-1 w-5 h-5 accent-indigo-600 shrink-0"
+                />
+              </label>
+            </section>
           )}
 
           {activeTab === "appearance" && (

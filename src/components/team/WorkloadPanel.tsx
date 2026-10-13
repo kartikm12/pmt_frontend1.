@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 type Row = Awaited<ReturnType<typeof api.getWorkload>>[number];
 // Above this many open tasks a person is flagged as stretched
@@ -20,7 +21,7 @@ export function WorkloadPanel() {
   }, []);
 
   if (error) return <div role="alert" className="card p-8 text-red-600">{error}</div>;
-  if (!rows) return <div className="card p-8 text-slate-500">Loading workload…</div>;
+  if (!rows) return <div className="card"><PageLoader compact /></div>;
 
   const max = Math.max(1, ...rows.map((r) => r.openTasks));
   return (

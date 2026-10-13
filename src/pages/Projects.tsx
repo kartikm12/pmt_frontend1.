@@ -12,8 +12,8 @@ import { MultiSelectDropdown } from "@/components/ui/MultiSelectDropdown";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { useBusy } from "@/lib/useBusy";
 import { isManager } from "@/utils/roleUtils";
-import { CardSkeleton } from "@/components/ui/Skeleton";
 import { Avatar } from "@/components/ui/Avatar";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 export function Projects() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -300,11 +300,7 @@ export function Projects() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
+        <PageLoader />
       ) : filteredProjects.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 card border-dashed transition-colors">
           <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-6">

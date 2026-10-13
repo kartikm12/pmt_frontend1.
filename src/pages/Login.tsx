@@ -5,6 +5,7 @@ import { Logo } from "@/components/ui/Logo";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { isEmail } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 export function Login() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -145,6 +146,11 @@ export function Login() {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            {mode === "login" && (
+              <div className="text-right">
+                <Link to="/forgot-password" className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Forgot password?</Link>
+              </div>
+            )}
           </div>
 
           {pendingNotice && !formError && (

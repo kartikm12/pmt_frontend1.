@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ActivityTimeline } from "@/components/reports/ActivityTimeline";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 // Everything that happened in one project, newest first (same list component Reports uses)
 export function ProjectActivity({ projectId }: { projectId: string }) {
@@ -13,6 +14,6 @@ export function ProjectActivity({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   if (error) return <div className="card p-8 text-red-600">{error}</div>;
-  if (!items) return <div className="card p-8 text-slate-500">Loading activity...</div>;
+  if (!items) return <div className="card"><PageLoader compact /></div>;
   return <ActivityTimeline data={items} subtitle="Everything that happened in this project" />;
 }

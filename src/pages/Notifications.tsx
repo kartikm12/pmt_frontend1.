@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import type { Notification, NotificationType } from "@/lib/api-types";
 import { useNotifications } from "@/context/NotificationContext";
 import { safeFormat } from "@/utils/dateUtils";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 export function Notifications() {
   const navigate = useNavigate();
@@ -85,9 +86,7 @@ export function Notifications() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <PageLoader />
     );
   }
 
