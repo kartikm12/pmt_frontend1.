@@ -11,6 +11,7 @@ import { useNavigation } from "@/context/NavigationContext";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export function TaskDetails() {
   const { id } = useParams();
@@ -232,8 +233,24 @@ export function TaskDetails() {
     }
   };
 
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+  const [confirmTaskDelete, setConfirmTaskDelete] = useState(false);
+
+  const handleDeleteTask = async () => {
+    setConfirmTaskDelete(false);
+    if (!id || !task) return;
+    try {
+      await api.deleteTask(id);
+      toast.success("Task deleted");
+      navigate(`/projects/${task.projectId}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete task");
+    }
+  };
+
   const handleDeleteComment = async (commentId: string) => {
-    if (!id || !window.confirm("Delete this comment?")) return;
+    setCommentToDelete(null);
+    if (!id) return;
     try {
       await api.deleteComment(commentId);
       setTask((prev) => prev && { ...prev, comments: prev.comments?.filter((c) => c.id !== commentId) });
@@ -348,14 +365,25 @@ export function TaskDetails() {
             </div>
           </div>
         </div>
-        {/* Everyone who can see the task may move its status; only managers edit the rest */}
-        <button
-          onClick={openModal}
-          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
-        >
-          <Edit2 className="w-4 h-4" />
-          {isManager ? "Edit Task" : "Update Status"}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Everyone who can see the task may move its status; only managers edit the rest */}
+          <button
+            onClick={openModal}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
+          >
+            <Edit2 className="w-4 h-4" />
+            {isManager ? "Edit Task" : "Update Status"}
+          </button>
+          {isManager && (
+            <button
+              onClick={() => setConfirmTaskDelete(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/50 rounded-xl text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shadow-sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -471,7 +499,7 @@ export function TaskDetails() {
                             {!entry.isSystem && (entry.userId === currentUser?.id || isManager) && (
                               <button
                                 type="button"
-                                onClick={() => handleDeleteComment(entry.id)}
+                                onClick={() => setCommentToDelete(entry.id)}
                                 className="p-1 text-zinc-400 hover:text-red-600 rounded transition-colors"
                                 title="Delete comment"
                                 aria-label="Delete comment"
@@ -529,6 +557,20 @@ export function TaskDetails() {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmTaskDelete}
+        title="Delete task?"
+        message={`"${task.title}" and its comments will be removed for everyone.`}
+        onConfirm={handleDeleteTask}
+        onCancel={() => setConfirmTaskDelete(false)}
+      />
+      <ConfirmDialog
+        open={!!commentToDelete}
+        title="Delete comment?"
+        message="This comment will be removed for everyone."
+        onConfirm={() => commentToDelete && handleDeleteComment(commentToDelete)}
+        onCancel={() => setCommentToDelete(null)}
+      />
       <AddTaskModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

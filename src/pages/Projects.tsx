@@ -492,7 +492,7 @@ function ProjectModal(props: {
             <X className="w-6 h-6" />
           </button>
         </div>
-        <form onSubmit={props.onSubmit} className="p-8 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+        <form onSubmit={props.onSubmit} noValidate className="p-8 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Name</label>
             <input required value={props.name} onChange={(e) => props.setName(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" />

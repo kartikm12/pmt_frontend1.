@@ -7,6 +7,7 @@ import { safeFormat } from "@/utils/dateUtils";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
 import { isManager } from "@/utils/roleUtils";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface AttachmentSectionProps {
   projectId?: string;
@@ -106,7 +107,10 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
     }
   };
 
+  const [fileToDelete, setFileToDelete] = useState<Attachment | null>(null);
+
   const handleDelete = async (id: string) => {
+    setFileToDelete(null);
     try {
       await api.deleteAttachment(id);
       setAttachments((prev) => prev.filter((a) => a.id !== id));
@@ -181,7 +185,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
                 </a>
                 {(file.userId === currentUser?.id || isManager(currentUser?.role)) && (
                   <button
-                    onClick={() => handleDelete(file.id)}
+                    onClick={() => setFileToDelete(file)}
                     className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     title="Delete"
                     aria-label={`Delete ${file.name}`}
@@ -194,6 +198,14 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!fileToDelete}
+        title="Delete file?"
+        message={fileToDelete ? `"${fileToDelete.name}" will be removed for everyone.` : undefined}
+        onConfirm={() => fileToDelete && handleDelete(fileToDelete.id)}
+        onCancel={() => setFileToDelete(null)}
+      />
     </div>
   );
 }

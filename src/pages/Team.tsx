@@ -3,6 +3,7 @@ import { Mail, MoreVertical, Plus, Search, Users, X, Briefcase, Lock, Eye, EyeOf
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
+import { isEmail } from "@/lib/utils";
 import type { Project, User } from "@/lib/api-types";
 import { useAuth } from "@/context/AuthContext";
 import { isManager } from "@/utils/roleUtils";
@@ -58,6 +59,10 @@ export function Team() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberToEdit) return;
+    if (inviteName.trim().length < 2) {
+      toast.error("Please enter the member's full name.");
+      return;
+    }
 
     try {
       await api.updateTeamMember(memberToEdit.id, {
@@ -105,6 +110,16 @@ export function Team() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Forms use noValidate (no browser popups); these are the rules the browser used to enforce
+    const problem =
+      inviteName.trim().length < 2 ? "Please enter the member's full name."
+      : !isEmail(inviteEmail) ? "Please enter a valid email address."
+      : invitePassword.length < 8 ? "Temporary password must be at least 8 characters."
+      : "";
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
 
     try {
       await api.inviteTeamMember({
@@ -174,7 +189,7 @@ export function Team() {
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              <form onSubmit={handleInvite} className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+              <form onSubmit={handleInvite} noValidate className="p-8 overflow-y-auto flex-1 custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                   <Field label="Full Name">
                     <input required type="text" value={inviteName} onChange={(e) => setInviteName(e.target.value)} className="w-full px-4 py-3 input text-sm focus:outline-none transition-all dark:text-slate-100 font-medium" />
@@ -254,7 +269,7 @@ export function Team() {
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              <form onSubmit={handleUpdate} className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+              <form onSubmit={handleUpdate} noValidate className="p-8 overflow-y-auto flex-1 custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                   <Field label="Full Name">
                     <input required type="text" value={inviteName} onChange={(e) => setInviteName(e.target.value)} className="w-full px-4 py-3 input text-sm focus:outline-none transition-all dark:text-slate-100 font-medium" />

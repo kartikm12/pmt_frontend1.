@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Plus, MoreHorizontal, Calendar, MessageSquare, Paperclip, X, Edit2 } from "lucide-react";
+import { Plus, Calendar, Paperclip, X, Edit2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AddTaskModal } from "@/components/AddTaskModal";
 import { api, API_BASE_URL } from "@/lib/api";
@@ -375,16 +375,30 @@ export function ProjectDetails() {
                               {task.title}
                             </h4>
                             {isManager && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openModal(task.status, task);
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                title="Edit Task"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center shrink-0 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-all">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openModal(task.status, task);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                                  title="Edit Task"
+                                  aria-label={`Edit ${task.title}`}
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTaskToDeleteId(task.id);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                  title="Delete Task"
+                                  aria-label={`Delete ${task.title}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             )}
                           </div>
                           <div className="flex flex-wrap gap-2 mb-5">

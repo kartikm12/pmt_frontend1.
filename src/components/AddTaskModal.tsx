@@ -119,7 +119,7 @@ export function AddTaskModal({
           </button>
         </div>
         
-        <form onSubmit={handleAddTask} className="px-6 py-3 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
+        <form onSubmit={handleAddTask} noValidate className="px-6 py-3 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
           {formError && (
             <div className="p-4 text-sm font-semibold text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
               {formError}
