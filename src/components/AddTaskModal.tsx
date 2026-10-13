@@ -62,14 +62,16 @@ export function AddTaskModal({
 }: AddTaskModalProps) {
   const availableUsers = React.useMemo(() => {
     if (!users) return [];
+    // Suspended people can't be newly assigned; current assignees stay listed
+    const assignable = users.filter(u => u.status !== "Suspended" || newTaskAssigneeIds?.includes(u.id));
     if (projects && newTaskProjectId) {
       const parentProject = projects.find(p => p.id === newTaskProjectId);
       if (parentProject) {
-        return users.filter(u => parentProject.teamMemberIds?.includes(u.id));
+        return assignable.filter(u => parentProject.teamMemberIds?.includes(u.id));
       }
     }
-    return users;
-  }, [users, projects, newTaskProjectId]);
+    return assignable;
+  }, [users, projects, newTaskProjectId, newTaskAssigneeIds]);
 
   // Clear assignees that don't belong to the newly selected project (status-only users can't change them)
   React.useEffect(() => {

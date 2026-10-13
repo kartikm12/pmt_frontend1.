@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { isManager } from "@/utils/roleUtils";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { Avatar } from "@/components/ui/Avatar";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const ROLE_OPTIONS: User["role"][] = [
   "Manager",
@@ -143,6 +144,20 @@ export function Team() {
       setInviteProjectId("");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add team member");
+    }
+  };
+
+  const [memberToSuspend, setMemberToSuspend] = useState<User | null>(null);
+
+  // Suspending signs the person out everywhere and blocks login; their work and history stay intact
+  const changeStatus = async (member: User, status: "Active" | "Suspended") => {
+    setMemberToSuspend(null);
+    try {
+      await api.updateTeamMember(member.id, { status });
+      setTeamMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, status } : m)));
+      toast.success(status === "Suspended" ? `${member.name} is suspended` : `${member.name} is active again`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update member");
     }
   };
 
@@ -369,7 +384,14 @@ export function Team() {
                       <div className="flex items-center gap-4">
                         <Avatar name={user.name} src={user.avatar} className="w-12 h-12 rounded-2xl border-2 border-white dark:border-slate-800 shadow-sm object-cover" />
                         <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">{user.name}</p>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            {user.name}
+                            {user.status === "Suspended" && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/40">
+                                Suspended
+                              </span>
+                            )}
+                          </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{user.title ?? user.status}</p>
                         </div>
                       </div>
@@ -435,6 +457,18 @@ export function Team() {
                             {user.id !== currentUser?.id && (
                               <button
                                 onClick={() => {
+                                  setActiveMenu(null);
+                                  if (user.status === "Suspended") void changeStatus(user, "Active");
+                                  else setMemberToSuspend(user);
+                                }}
+                                className="w-full text-left px-4 py-2 text-xs font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                              >
+                                {user.status === "Suspended" ? "Reactivate Member" : "Suspend Member"}
+                              </button>
+                            )}
+                            {user.id !== currentUser?.id && (
+                              <button
+                                onClick={() => {
                                   setMemberToDelete(user);
                                   setIsDeleteModalOpen(true);
                                   setActiveMenu(null);
@@ -482,6 +516,15 @@ export function Team() {
           </div>,
           document.body
         )}
+
+      <ConfirmDialog
+        open={!!memberToSuspend}
+        title="Suspend member?"
+        message={memberToSuspend ? `${memberToSuspend.name} will be signed out and can't log in until reactivated. Their tasks and history stay.` : undefined}
+        confirmLabel="Suspend"
+        onConfirm={() => memberToSuspend && changeStatus(memberToSuspend, "Suspended")}
+        onCancel={() => setMemberToSuspend(null)}
+      />
     </div>
   );
 }

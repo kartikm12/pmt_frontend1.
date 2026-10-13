@@ -310,7 +310,7 @@ export function Leaderboard() {
                       </td>
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-4">
-                          <Avatar name={""} src={user.avatarUrl} className="w-10 h-10 rounded-full border-2 border-white dark:border-zinc-800" />
+                          <Avatar name={user.fullName} src={user.avatarUrl} className="w-10 h-10 rounded-full border-2 border-white dark:border-zinc-800" />
                           <div>
                             <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                               {user.fullName}

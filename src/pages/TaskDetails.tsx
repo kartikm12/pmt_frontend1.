@@ -201,12 +201,18 @@ export function TaskDetails() {
         }
       };
 
+      const handleCommentUpdated = (data: any) => {
+        if (data.taskId === id) api.getTask(id).then(setTask).catch(() => undefined);
+      };
+
       socket.on("task_updated", handleTaskUpdated);
       socket.on("comment_added", handleCommentAdded);
+      socket.on("comment_updated", handleCommentUpdated);
 
       return () => {
         socket.off("task_updated", handleTaskUpdated);
         socket.off("comment_added", handleCommentAdded);
+        socket.off("comment_updated", handleCommentUpdated);
       };
     }
   }, [socket, id]);
@@ -234,6 +240,27 @@ export function TaskDetails() {
   };
 
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [isSavingComment, setIsSavingComment] = useState(false);
+
+  const handleSaveComment = async () => {
+    if (!editingCommentId || !editingText.trim() || isSavingComment) return;
+    setIsSavingComment(true);
+    try {
+      const saved = await api.updateComment(editingCommentId, editingText);
+      setTask((prev) => prev && {
+        ...prev,
+        comments: prev.comments?.map((c) => (c.id === saved.id ? { ...c, text: saved.body, updatedAt: saved.updatedAt } : c))
+      });
+      setEditingCommentId(null);
+      toast.success("Comment updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update comment");
+    } finally {
+      setIsSavingComment(false);
+    }
+  };
   const [confirmTaskDelete, setConfirmTaskDelete] = useState(false);
 
   const handleDeleteTask = async () => {
@@ -467,6 +494,8 @@ export function TaskDetails() {
                   type: "comment",
                   details: c.text,
                   createdAt: c.createdAt,
+                  // >1s apart = changed after posting (createdAt and updatedAt are both set on insert)
+                  edited: !!c.updatedAt && new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime() > 1000,
                   isSystem: false,
                   user: c.user
                 })) || [])
@@ -496,6 +525,23 @@ export function TaskDetails() {
                             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-zinc-50 dark:bg-zinc-900/50 px-2 py-0.5 rounded-full border border-zinc-100 dark:border-zinc-800">
                               {safeFormat(entry.createdAt, "MMM d, h:mm a")}
                             </span>
+                            {"edited" in entry && entry.edited && (
+                              <span className="text-[10px] font-semibold text-zinc-400 italic">(edited)</span>
+                            )}
+                            {!entry.isSystem && entry.userId === currentUser?.id && editingCommentId !== entry.id && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCommentId(entry.id);
+                                  setEditingText(entry.details);
+                                }}
+                                className="p-1 text-zinc-400 hover:text-indigo-600 rounded transition-colors"
+                                title="Edit comment"
+                                aria-label="Edit comment"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             {!entry.isSystem && (entry.userId === currentUser?.id || isManager) && (
                               <button
                                 type="button"
@@ -509,13 +555,43 @@ export function TaskDetails() {
                             )}
                           </div>
                         </div>
-                        <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                          entry.isSystem
-                            ? "text-zinc-500 font-medium"
-                            : "text-zinc-700 dark:text-zinc-300"
-                        }`}>
-                          {entry.isSystem ? entry.details : renderCommentWithMentions(entry.details)}
-                        </p>
+                        {editingCommentId === entry.id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setEditingCommentId(null);
+                                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void handleSaveComment();
+                              }}
+                              aria-label="Edit comment text"
+                              autoFocus
+                              rows={3}
+                              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button type="button" onClick={() => setEditingCommentId(null)} className="px-4 py-1.5 btn-secondary text-xs font-bold">
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleSaveComment}
+                                disabled={isSavingComment || !editingText.trim()}
+                                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                            entry.isSystem
+                              ? "text-zinc-500 font-medium"
+                              : "text-zinc-700 dark:text-zinc-300"
+                          }`}>
+                            {entry.isSystem ? entry.details : renderCommentWithMentions(entry.details)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );

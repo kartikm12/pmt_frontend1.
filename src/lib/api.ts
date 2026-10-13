@@ -72,6 +72,7 @@ export type RawTask = {
     userId: string;
     body: string;
     createdAt: string;
+    updatedAt?: string;
     user?: RawUser;
   }>;
 };
@@ -255,6 +256,7 @@ export function mapTask(raw: RawTask): Task {
         userId: comment.userId,
         text: comment.body,
         createdAt: comment.createdAt,
+        updatedAt: comment.updatedAt,
         user: comment.user ? mapUser(comment.user) : undefined
       })
     ),
@@ -341,7 +343,9 @@ async function request<T>(path: string, options: RequestInit = {}) {
           detail: {
             message: data?.message === SESSION_EXPIRED_MESSAGE
               ? "Your account was logged in from another device."
-              : "Your session has ended. Please sign in again."
+              : /suspended|removed from the workspace/i.test(data?.message ?? "")
+                ? data.message
+                : "Your session has ended. Please sign in again."
           }
         })
       );
@@ -662,6 +666,7 @@ export const api = {
       fullName?: string;
       role?: User["role"];
       title?: string;
+      status?: "Active" | "Suspended";
       projectId?: string;
     }
   ) {
@@ -683,6 +688,7 @@ export const api = {
         fullName: payload.fullName,
         role: payload.role ? roleMap[payload.role] : undefined,
         title: payload.title,
+        status: payload.status ? payload.status.toUpperCase() : undefined,
         projectId: payload.projectId
       })
     });
@@ -700,6 +706,13 @@ export const api = {
   async postComment(taskId: string, body: string) {
     return request<Comment>(`/tasks/${taskId}/comments`, {
       method: "POST",
+      body: JSON.stringify({ body })
+    });
+  },
+
+  async updateComment(commentId: string, body: string) {
+    return request<{ id: string; body: string; updatedAt: string }>(`/tasks/comments/${commentId}`, {
+      method: "PATCH",
       body: JSON.stringify({ body })
     });
   },

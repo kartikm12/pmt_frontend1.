@@ -25,7 +25,6 @@ export function Projects() {
   const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
@@ -112,12 +111,6 @@ export function Projects() {
     setActiveSearchQuery(searchQuery);
   };
 
-  const projectDatesError = (start: string, end: string, originalDue?: string) => {
-    if (start && end && start > end) return "Start date must be on or before the end date.";
-    const endError = deadlineError(end, originalDue);
-    return endError && endError.startsWith("Deadline") ? "Deadline (End Date) must be today or a future date." : endError;
-  };
-
   // Close the card menu on any outside click
   useEffect(() => {
     if (!activeMenu) return;
@@ -170,44 +163,6 @@ export function Projects() {
     }
   };
 
-  const handleEditProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProject) return;
-
-    if (
-      !editingProject.name.trim() ||
-      !editingProject.description.trim() ||
-      !editingProject.startDate ||
-      !editingProject.dueDate ||
-      !editingProject.teamMemberIds?.length
-    ) {
-      toast.error("All project fields are required.");
-      return;
-    }
-
-    // Compare with the saved deadline so an overdue project can still be edited (e.g. marked Completed)
-    const original = allProjects.find((p) => p.id === editingProject.id);
-    const editDateError = projectDatesError(
-      safeFormat(editingProject.startDate, "yyyy-MM-dd", ""),
-      safeFormat(editingProject.dueDate, "yyyy-MM-dd", ""),
-      original?.dueDate
-    );
-    if (editDateError) {
-      toast.error(editDateError);
-      return;
-    }
-
-    try {
-      const updated = await api.updateProject(editingProject.id, editingProject);
-      handleProjectUpdated(updated);
-      setIsEditProjectModalOpen(false);
-      setEditingProject(null);
-      toast.success("Project updated successfully!");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update project");
-    }
-  };
-
   const deleteProject = async () => {
     if (!projectToDelete) return;
 
@@ -257,27 +212,15 @@ export function Projects() {
         />
       )}
 
-      {isEditProjectModalOpen && editingProject && (
-        <ProjectModal
-          title="Edit Project"
-          onClose={() => setIsEditProjectModalOpen(false)}
-          onSubmit={handleEditProject}
-          name={editingProject.name}
-          setName={(value) => setEditingProject({ ...editingProject, name: value })}
-          description={editingProject.description}
-          setDescription={(value) => setEditingProject({ ...editingProject, description: value })}
-          startDate={safeFormat(editingProject.startDate, "yyyy-MM-dd", "")}
-          // A cleared date input gives "", and new Date("").toISOString() throws and blanked the page
-          setStartDate={(value) => setEditingProject({ ...editingProject, startDate: value ? new Date(value).toISOString() : "" })}
-          endDate={safeFormat(editingProject.dueDate, "yyyy-MM-dd", "")}
-          setEndDate={(value) => setEditingProject({ ...editingProject, dueDate: value ? new Date(value).toISOString() : "" })}
-          isEdit
-          status={editingProject.status}
-          setStatus={(value) => setEditingProject({ ...editingProject, status: value as Project["status"] })}
-          memberIds={editingProject.teamMemberIds || []}
-          setMemberIds={(ids) => setEditingProject({ ...editingProject, teamMemberIds: ids })}
+      {editingProject && (
+        <EditProjectModal
+          project={editingProject}
           users={users}
-          submitLabel="Save Changes"
+          onClose={() => setEditingProject(null)}
+          onSaved={(updated) => {
+            handleProjectUpdated(updated);
+            setEditingProject(null);
+          }}
         />
       )}
 
@@ -406,7 +349,6 @@ export function Projects() {
                             onClick={(e) => {
                               e.preventDefault();
                               setEditingProject({ ...project });
-                              setIsEditProjectModalOpen(true);
                               setActiveMenu(null);
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
@@ -460,6 +402,75 @@ export function Projects() {
         </div>
       )}
     </div>
+  );
+}
+
+function projectDatesError(start: string, end: string, originalDue?: string) {
+  if (start && end && start > end) return "Start date must be on or before the end date.";
+  const endError = deadlineError(end, originalDue);
+  return endError && endError.startsWith("Deadline") ? "Deadline (End Date) must be today or a future date." : endError;
+}
+
+// Shared by the Projects list and the project's own page, so both edit with the same rules
+export function EditProjectModal({ project, users, onClose, onSaved }: {
+  project: Project;
+  users: User[];
+  onClose: () => void;
+  onSaved: (updated: Project) => void;
+}) {
+  const [editing, setEditing] = useState<Project>({ ...project });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing.name.trim() || !editing.description.trim() || !editing.startDate || !editing.dueDate || !editing.teamMemberIds?.length) {
+      toast.error("All project fields are required.");
+      return;
+    }
+    // Compare with the saved deadline so an overdue project can still be edited (e.g. marked Completed)
+    const dateError = projectDatesError(
+      safeFormat(editing.startDate, "yyyy-MM-dd", ""),
+      safeFormat(editing.dueDate, "yyyy-MM-dd", ""),
+      project.dueDate
+    );
+    if (dateError) {
+      toast.error(dateError);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const updated = await api.updateProject(editing.id, editing);
+      onSaved(updated);
+      toast.success("Project updated successfully!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update project");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <ProjectModal
+      title="Edit Project"
+      onClose={onClose}
+      onSubmit={save}
+      name={editing.name}
+      setName={(value) => setEditing({ ...editing, name: value })}
+      description={editing.description}
+      setDescription={(value) => setEditing({ ...editing, description: value })}
+      startDate={safeFormat(editing.startDate, "yyyy-MM-dd", "")}
+      // A cleared date input gives "", and new Date("").toISOString() throws and blanked the page
+      setStartDate={(value) => setEditing({ ...editing, startDate: value ? new Date(value).toISOString() : "" })}
+      endDate={safeFormat(editing.dueDate, "yyyy-MM-dd", "")}
+      setEndDate={(value) => setEditing({ ...editing, dueDate: value ? new Date(value).toISOString() : "" })}
+      isEdit
+      status={editing.status}
+      setStatus={(value) => setEditing({ ...editing, status: value as Project["status"] })}
+      memberIds={editing.teamMemberIds || []}
+      setMemberIds={(ids) => setEditing({ ...editing, teamMemberIds: ids })}
+      users={users}
+      submitLabel={isSaving ? "Saving..." : "Save Changes"}
+    />
   );
 }
 
@@ -521,8 +532,9 @@ function ProjectModal(props: {
             <div className="space-y-2">
               <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Project Team</label>
               <>
-                <MultiSelectDropdown 
-                  options={props.users} 
+                <MultiSelectDropdown
+                  // Suspended people can't be newly added; ones already on the team stay listed
+                  options={props.users.filter((u) => u.status !== "Suspended" || props.memberIds?.includes(u.id))}
                   selectedIds={props.memberIds} 
                   onChange={(ids) => props.setMemberIds?.(ids)} 
                   placeholder="Search and select project members..."
