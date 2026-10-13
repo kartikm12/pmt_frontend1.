@@ -39,8 +39,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       const newSocket = io(getSocketUrl(), {
         auth: { token },
         reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        // Keep trying (waits grow to 10 s): a deploy or a sleeping free-tier server takes longer than
+        // the old 5 attempts (~20 s), after which live updates silently stopped until a page refresh
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 10000
       });
 
       newSocket.on("connect", () => {

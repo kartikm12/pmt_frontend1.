@@ -20,8 +20,19 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   const { currentUser, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
-  const { socket } = useSocket();
+  const { socket, isConnected } = useSocket();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  // Only flag a lost live connection after 2 s, so ordinary page loads don't flash the notice
+  const [showReconnecting, setShowReconnecting] = useState(false);
+  useEffect(() => {
+    if (!socket || isConnected) {
+      setShowReconnecting(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowReconnecting(true), 2000);
+    return () => clearTimeout(timer);
+  }, [socket, isConnected]);
   
   const notificationsRef = useRef<HTMLDivElement>(null);
 
@@ -83,6 +94,16 @@ export function TopBar({ onMenuClick }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-4 md:gap-8">
+        {showReconnecting && (
+          <span
+            role="status"
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40"
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="hidden sm:inline">Reconnecting… live updates paused</span>
+            <span className="sm:hidden">Reconnecting…</span>
+          </span>
+        )}
         <div className="hidden sm:block w-px h-8 bg-black/10 dark:bg-white/10" />
         
         <div className="flex items-center gap-2">
