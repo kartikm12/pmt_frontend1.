@@ -32,6 +32,7 @@ export function Projects() {
   const [newProjectStartDate, setNewProjectStartDate] = useState("");
   const [newProjectEndDate, setNewProjectEndDate] = useState("");
   const [newProjectMembers, setNewProjectMembers] = useState<string[]>([]);
+  const [copyFromProjectId, setCopyFromProjectId] = useState("");
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
   useEffect(() => {
@@ -147,7 +148,8 @@ export function Projects() {
         startDate: new Date(newProjectStartDate).toISOString(),
         dueDate: new Date(newProjectEndDate).toISOString(),
         managerId: currentUser.id,
-        memberIds: newProjectMembers
+        memberIds: newProjectMembers,
+        copyFromProjectId: copyFromProjectId || undefined
       });
 
       setAllProjects((prev) => [project, ...prev]);
@@ -157,7 +159,8 @@ export function Projects() {
       setNewProjectStartDate("");
       setNewProjectEndDate("");
       setNewProjectMembers([]);
-      toast.success("Project created successfully!");
+      setCopyFromProjectId("");
+      toast.success(copyFromProjectId ? "Project created with the copied tasks" : "Project created successfully!");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create project");
     }
@@ -169,7 +172,7 @@ export function Projects() {
     try {
       await api.deleteProject(projectToDelete);
       setAllProjects((prev) => prev.filter((project) => project.id !== projectToDelete));
-      toast.success("Project deleted");
+      toast.success("Project moved to Recently deleted");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete project");
     } finally {
@@ -208,6 +211,9 @@ export function Projects() {
           memberIds={newProjectMembers}
           setMemberIds={setNewProjectMembers}
           users={users}
+          copyFromId={copyFromProjectId}
+          setCopyFromId={setCopyFromProjectId}
+          copyOptions={allProjects}
           submitLabel="Create Project"
         />
       )}
@@ -235,7 +241,7 @@ export function Projects() {
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">Delete Project?</h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                    Are you sure you want to delete this project? This action cannot be undone.
+                    It and its tasks move to Recently deleted, where a manager can restore them within 30 days.
                   </p>
                 </div>
                 <div className="pt-4 flex gap-4">
@@ -491,6 +497,10 @@ function ProjectModal(props: {
   memberIds?: string[];
   setMemberIds?: (ids: string[]) => void;
   users?: User[];
+  // Template: copy another project's tasks, checklists and milestones (dates shift to the new start)
+  copyFromId?: string;
+  setCopyFromId?: (id: string) => void;
+  copyOptions?: Project[];
   submitLabel: string;
   isEdit?: boolean;
 }) {
@@ -541,6 +551,17 @@ function ProjectModal(props: {
                 />
                 <p className="text-xs text-slate-500 dark:text-slate-400">At least one project team member is required.</p>
               </>
+            </div>
+          )}
+          {props.setCopyFromId && props.copyOptions && props.copyOptions.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Copy tasks from (optional)</label>
+              <SingleSelectDropdown
+                options={[{ id: "", name: "Start empty" }, ...props.copyOptions.map((p) => ({ id: p.id, name: p.name }))]}
+                selectedId={props.copyFromId ?? ""}
+                onChange={(id) => props.setCopyFromId?.(id)}
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tasks, checklists and milestones are copied as new, with dates moved to this project's start. Copies are assigned to you.</p>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">

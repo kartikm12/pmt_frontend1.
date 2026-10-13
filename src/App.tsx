@@ -16,6 +16,9 @@ import { Leaderboard } from "./pages/Leaderboard";
 import { Team } from "./pages/Team";
 import { Settings } from "./pages/Settings";
 import { Notifications } from "./pages/Notifications";
+import { Calendar } from "./pages/Calendar";
+import { Trash } from "./pages/Trash";
+import { AuditLog } from "./pages/AuditLog";
 import { Login } from "./pages/Login";
 import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -64,6 +67,9 @@ function AppRoutes() {
         <Route path="team" element={<Team />} />
         <Route path="settings" element={<Settings />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="calendar" element={<Calendar />} />
+        <Route path="trash" element={<Trash />} />
+        <Route path="audit" element={<AuditLog />} />
         {/* Unknown addresses used to render an empty page */}
         <Route
           path="*"

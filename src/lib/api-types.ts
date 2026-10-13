@@ -27,6 +27,19 @@ export interface User {
   projects?: Project[];
 }
 
+// What the signed-in person may do in one project (from the server; company-wide managers are "manager" everywhere)
+export type ProjectRole = "manager" | "contributor" | "viewer";
+export type MembershipRole = "OWNER" | "MANAGER" | "CONTRIBUTOR" | "VIEWER";
+export type Recurrence = "DAILY" | "WEEKLY" | "MONTHLY";
+
+export interface Milestone {
+  id: string;
+  name: string;
+  dueDate?: string | null;
+  taskTotal?: number;
+  taskDone?: number;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -37,6 +50,29 @@ export interface Project {
   teamMemberIds: string[];
   status: ProjectStatus;
   attachments?: Attachment[];
+  myRole?: ProjectRole;
+  milestones?: Milestone[];
+  memberRoles?: Record<string, MembershipRole>;
+}
+
+export interface Subtask {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
+export interface TimeEntry {
+  id: string;
+  minutes: number;
+  note?: string | null;
+  spentOn: string;
+  user?: { id: string; fullName: string; avatarUrl?: string | null };
+}
+
+export interface TaskLink {
+  id: string;
+  title: string;
+  status: string;
 }
 
 export interface Comment {
@@ -84,6 +120,21 @@ export interface Task {
   comments?: Comment[];
   attachments?: Attachment[];
   activity?: Activity[];
+  labels: string[];
+  estimateHours?: number | null;
+  startDate?: string | null;
+  recurrence?: Recurrence | null;
+  milestoneId?: string | null;
+  milestone?: Milestone | null;
+  subtaskTotal?: number;
+  subtaskDone?: number;
+  subtasks?: Subtask[];
+  blockedBy?: TaskLink[];
+  blocks?: TaskLink[];
+  watchers?: User[];
+  timeEntries?: TimeEntry[];
+  myRole?: ProjectRole | null;
+  createdAt?: string;
 }
 
 export interface LeaderboardEntry {

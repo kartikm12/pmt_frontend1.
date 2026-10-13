@@ -1,9 +1,12 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import type { Task, TaskPriority, TaskStatus } from '@/lib/api-types';
+import type { Milestone, Task, TaskPriority, TaskStatus } from '@/lib/api-types';
 import { MultiSelectDropdown } from '@/components/ui/MultiSelectDropdown';
 import { SingleSelectDropdown } from '@/components/ui/SingleSelectDropdown';
+import { LabelInput } from '@/components/ui/LabelChip';
+import { api } from '@/lib/api';
+import type { PlanningState } from '@/lib/planning';
 
 interface AddTaskModalProps {
   isOpen: boolean;
@@ -31,6 +34,9 @@ interface AddTaskModalProps {
   modalRef?: React.RefObject<HTMLDivElement>;
   handleBackdropClick?: (e: React.MouseEvent) => void;
   statusOnly?: boolean;
+  // Labels, estimate, start date, repeat, milestone, blocked-by (managers only)
+  planning?: PlanningState;
+  setPlanning?: (planning: PlanningState) => void;
 }
 
 export function AddTaskModal({
@@ -58,8 +64,41 @@ export function AddTaskModal({
   projects,
   modalRef,
   handleBackdropClick,
-  statusOnly = false
+  statusOnly = false,
+  planning,
+  setPlanning
 }: AddTaskModalProps) {
+  // Milestones and other tasks of the chosen project, for the planning pickers
+  const [milestones, setMilestones] = React.useState<Milestone[]>([]);
+  const [projectTasks, setProjectTasks] = React.useState<Task[]>([]);
+  React.useEffect(() => {
+    if (!isOpen || statusOnly || !planning || !newTaskProjectId) {
+      setMilestones([]);
+      setProjectTasks([]);
+      return;
+    }
+    let cancelled = false;
+    api.getProjectBundle(newTaskProjectId)
+      .then((b) => {
+        if (cancelled) return;
+        setMilestones(b.project.milestones ?? []);
+        setProjectTasks(b.tasks);
+        // Moving the task to another project: milestone and blockers must belong to that project
+        if (planning && setPlanning) {
+          const taskIds = new Set(b.tasks.map((t) => t.id));
+          const milestoneOk = !planning.milestoneId || (b.project.milestones ?? []).some((m) => m.id === planning.milestoneId);
+          const blockers = planning.blockedByIds.filter((x) => taskIds.has(x));
+          if (!milestoneOk || blockers.length !== planning.blockedByIds.length) {
+            setPlanning({ ...planning, milestoneId: milestoneOk ? planning.milestoneId : "", blockedByIds: blockers });
+          }
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, statusOnly, newTaskProjectId, !!planning]);
+
   const availableUsers = React.useMemo(() => {
     if (!users) return [];
     // Suspended people can't be newly assigned; current assignees stay listed
@@ -267,9 +306,78 @@ export function AddTaskModal({
               )}
             </div>
           )}
-          
+
+          {planning && setPlanning && !statusOnly && (
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="space-y-1">
+                <label className="text-sm font-normal text-slate-700 dark:text-slate-300">Labels</label>
+                <LabelInput labels={planning.labels} onChange={(labels) => setPlanning({ ...planning, labels })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label htmlFor="task-estimate" className="text-sm font-normal text-slate-700 dark:text-slate-300">Estimate (hours)</label>
+                  <input
+                    id="task-estimate"
+                    type="number"
+                    min={0}
+                    max={1000}
+                    step={0.5}
+                    value={planning.estimateHours}
+                    onChange={(e) => setPlanning({ ...planning, estimateHours: e.target.value })}
+                    placeholder="4"
+                    className="w-full input px-4 py-3 text-sm focus:outline-none dark:text-slate-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="task-start" className="text-sm font-normal text-slate-700 dark:text-slate-300">Start date</label>
+                  <input
+                    id="task-start"
+                    type="date"
+                    value={planning.startDate}
+                    onChange={(e) => setPlanning({ ...planning, startDate: e.target.value })}
+                    className="w-full input px-4 py-3 text-sm focus:outline-none dark:text-slate-100"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-sm font-normal text-slate-700 dark:text-slate-300">Repeat</label>
+                  <SingleSelectDropdown
+                    options={[
+                      { id: "", name: "Doesn't repeat" },
+                      { id: "DAILY", name: "Every day" },
+                      { id: "WEEKLY", name: "Every week" },
+                      { id: "MONTHLY", name: "Every month" }
+                    ]}
+                    selectedId={planning.recurrence}
+                    onChange={(id) => setPlanning({ ...planning, recurrence: id as PlanningState["recurrence"] })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-normal text-slate-700 dark:text-slate-300">Milestone</label>
+                  <SingleSelectDropdown
+                    options={[{ id: "", name: "No milestone" }, ...milestones.map((m) => ({ id: m.id, name: m.name }))]}
+                    selectedId={planning.milestoneId}
+                    onChange={(id) => setPlanning({ ...planning, milestoneId: id })}
+                    disabled={!newTaskProjectId}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-normal text-slate-700 dark:text-slate-300">Blocked by</label>
+                <MultiSelectDropdown
+                  options={projectTasks.filter((t) => t.id !== taskToEdit?.id).map((t) => ({ id: t.id, name: t.title }))}
+                  selectedIds={planning.blockedByIds}
+                  onChange={(ids) => setPlanning({ ...planning, blockedByIds: ids })}
+                  placeholder="Tasks that must finish first..."
+                  disabled={!newTaskProjectId}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="pt-2 flex gap-4">
-            <button 
+            <button
               type="button"
               onClick={() => {
                 onClose();

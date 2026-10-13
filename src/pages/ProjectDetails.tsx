@@ -1,21 +1,42 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Plus, Calendar, Paperclip, Edit2, Trash2 } from "lucide-react";
+import { Plus, Calendar, Paperclip, Edit2, Trash2, Lock, Repeat, CheckSquare } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EditProjectModal } from "@/pages/Projects";
 import { toast } from "sonner";
 import { AddTaskModal } from "@/components/AddTaskModal";
-import { api, API_BASE_URL } from "@/lib/api";
-import type { Project, Task, TaskPriority, TaskStatus, User, Attachment } from "@/lib/api-types";
+import { api } from "@/lib/api";
+import type { MembershipRole, Project, Task, TaskPriority, TaskStatus, User } from "@/lib/api-types";
+import { emptyPlanning, openBlockers, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
 import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { useNavigation } from "@/context/NavigationContext";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
 import { AttachmentSection } from "@/components/AttachmentSection";
 import { Avatar } from "@/components/ui/Avatar";
+import { LabelChip } from "@/components/ui/LabelChip";
+import { MilestonesBar } from "@/components/project/MilestonesBar";
+import { ProjectTimeline } from "@/components/project/ProjectTimeline";
+import { ProjectActivity } from "@/components/project/ProjectActivity";
 
 const COLUMNS: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
+const TABS = [
+  { id: "board", label: "Board" },
+  { id: "timeline", label: "Timeline" },
+  { id: "team", label: "Team" },
+  { id: "files", label: "Files" },
+  { id: "activity", label: "Activity" }
+] as const;
+type Tab = (typeof TABS)[number]["id"];
+const ROLE_LABEL: Record<MembershipRole, string> = { OWNER: "Owner", MANAGER: "Manager", CONTRIBUTOR: "Contributor", VIEWER: "Viewer" };
+
+// Put the given cards in this order (they go last in the list; columns are filtered by status anyway)
+function applyOrder(tasks: Task[], orderedIds: string[]) {
+  const pos = new Map(orderedIds.map((x, i) => [x, i]));
+  const moved = tasks.filter((t) => pos.has(t.id)).sort((a, b) => pos.get(a.id)! - pos.get(b.id)!);
+  return [...tasks.filter((t) => !pos.has(t.id)), ...moved];
+}
 
 export function ProjectDetails() {
   const { id } = useParams<{ id: string }>();
@@ -26,7 +47,7 @@ export function ProjectDetails() {
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [activeTab, setActiveTab] = useState<"board" | "team" | "files">("board");
+  const [activeTab, setActiveTab] = useState<Tab>("board");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [newTaskColumn, setNewTaskColumn] = useState<TaskStatus>("To Do");
@@ -36,17 +57,29 @@ export function ProjectDetails() {
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [newTaskProjectId, setNewTaskProjectId] = useState("");
   const [newTaskAssigneeIds, setNewTaskAssigneeIds] = useState<string[]>([]);
+  const [planning, setPlanning] = useState<PlanningState>(emptyPlanning);
   const [formError, setFormError] = useState("");
-  const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
+  const [blockedDrop, setBlockedDrop] = useState<{ result: DropResult; names: string } | null>(null);
   const { currentUser } = useAuth();
-  const isManager = ["Manager", "Project Manager", "Admin"].includes(currentUser?.role ?? "");
   const { socket, joinProject, leaveProject } = useSocket();
 
   const [loadError, setLoadError] = useState("");
   const [isEditingProject, setIsEditingProject] = useState(false);
   const [confirmProjectDelete, setConfirmProjectDelete] = useState(false);
   const deletingProjectRef = useRef(false); // our own delete shouldn't also trigger the "was deleted" notice
+
+  // Re-read the project (my role, milestones, member roles) after changes made here or elsewhere
+  const reloadProject = async () => {
+    if (!id) return;
+    try {
+      const bundle = await api.getProjectBundle(id);
+      setProject((prev) => (prev ? { ...bundle.project, attachments: prev.attachments } : bundle.project));
+      setEntityName(id, bundle.project.name);
+    } catch {
+      // removal is handled by project_deleted; other failures keep the current view
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -64,7 +97,7 @@ export function ProjectDetails() {
         setAllProjects(projectsData);
         setEntityName(id, bundle.project.name);
         setTasks(bundle.tasks);
-        setUsers((prev) => {
+        setUsers(() => {
           const merged: User[] = [...teamData];
           const existingIds = new Set(teamData.map(u => u.id));
           bundle.users.forEach(u => {
@@ -118,15 +151,14 @@ export function ProjectDetails() {
         setTasks(prev => prev.filter(t => t.id !== data.taskId));
       };
 
+      const handleReordered = (data: { projectId: string; orderedIds: string[] }) => {
+        if (data.projectId === id) setTasks((prev) => applyOrder(prev, data.orderedIds));
+      };
+
       const handleProjectUpdated = (data: any) => {
-        const updatedProject = data.members ? api.mapProject(data) : (data as Project);
-        
-        setProject((prev) => {
-          if (prev && prev.id === updatedProject.id) {
-            return { ...prev, ...updatedProject };
-          }
-          return prev;
-        });
+        if (data.id !== id) return;
+        // The event carries no "my role" or milestones, so read the project again
+        void reloadProject();
 
         if (data.members) {
           const newUsers = data.members.map((m: any) => m.user).filter(Boolean).map(api.mapUser);
@@ -148,6 +180,7 @@ export function ProjectDetails() {
       socket.on("task_created", handleTaskCreated);
       socket.on("task_updated", handleTaskUpdated);
       socket.on("task_deleted", handleTaskDeleted);
+      socket.on("tasks_reordered", handleReordered);
       socket.on("project_updated", handleProjectUpdated);
       socket.on("project_deleted", handleProjectDeleted);
 
@@ -155,6 +188,7 @@ export function ProjectDetails() {
         socket.off("task_created", handleTaskCreated);
         socket.off("task_updated", handleTaskUpdated);
         socket.off("task_deleted", handleTaskDeleted);
+        socket.off("tasks_reordered", handleReordered);
         socket.off("project_updated", handleProjectUpdated);
         socket.off("project_deleted", handleProjectDeleted);
       };
@@ -162,6 +196,14 @@ export function ProjectDetails() {
   }, [socket, id]);
 
   const userMap = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+  // Milestone progress follows the board live instead of the counts loaded with the page
+  const milestones = useMemo(
+    () => (project?.milestones ?? []).map((m) => {
+      const own = tasks.filter((t) => t.milestoneId === m.id);
+      return { ...m, taskTotal: own.length, taskDone: own.filter((t) => t.status === "Completed").length };
+    }),
+    [project?.milestones, tasks]
+  );
 
   if (loadError) {
     return (
@@ -179,6 +221,10 @@ export function ProjectDetails() {
     return <div className="text-slate-500 dark:text-slate-400">Loading project...</div>;
   }
 
+  // Per-project role from the server: managers plan, contributors move cards, viewers only look
+  const canManage = project.myRole === "manager";
+  const canContribute = !!project.myRole && project.myRole !== "viewer";
+
   const openModal = (column: TaskStatus = "To Do", task?: Task) => {
     if (task) {
       setTaskToEdit(task);
@@ -189,6 +235,7 @@ export function ProjectDetails() {
       setNewTaskDueDate(safeFormat(task.dueDate, "yyyy-MM-dd"));
       setNewTaskProjectId(task.projectId);
       setNewTaskAssigneeIds(task.assigneeIds || []);
+      setPlanning(planningFromTask(task));
     } else {
       setTaskToEdit(null);
       setNewTaskColumn(column);
@@ -198,6 +245,7 @@ export function ProjectDetails() {
       setNewTaskDueDate(safeFormat(new Date().toISOString(), "yyyy-MM-dd"));
       setNewTaskProjectId(id || "");
       setNewTaskAssigneeIds([]);
+      setPlanning(emptyPlanning);
     }
 
     setFormError("");
@@ -223,9 +271,16 @@ export function ProjectDetails() {
       return;
     }
 
+    const planError = planningError(planning, newTaskDueDate);
+    if (planError) {
+      setFormError(planError);
+      return;
+    }
+
     try {
       if (taskToEdit) {
         const updated = await api.updateTask(taskToEdit.id, {
+          ...planningToPayload(planning),
           title: newTaskTitle,
           description: newTaskDescription,
           priority: newTaskPriority,
@@ -244,6 +299,7 @@ export function ProjectDetails() {
         }
       } else if (id) {
         const created = await api.createTask({
+          ...planningToPayload(planning),
           title: newTaskTitle,
           description: newTaskDescription,
           priority: newTaskPriority,
@@ -264,22 +320,52 @@ export function ProjectDetails() {
     }
   };
 
-
-
-  // Dropping a card on another column changes its status (anyone who can see the task may do that).
-  // shortcut: order inside a column isn't saved (it follows the server's sort); add sortOrder writes if people ask for it
-  const handleDragEnd = async ({ draggableId, source, destination }: DropResult) => {
-    if (!destination || destination.droppableId === source.droppableId) return;
+  // Same column: save the new card order. Another column: change status, then save the order there.
+  const moveCard = async ({ draggableId, source, destination }: DropResult) => {
+    if (!destination || !id) return;
     const newStatus = destination.droppableId as TaskStatus;
+    const card = tasks.find((t) => t.id === draggableId);
+    if (!card) return;
     const before = tasks;
-    setTasks((prev) => prev.map((t) => (t.id === draggableId ? { ...t, status: newStatus } : t)));
+    const column = tasks.filter((t) => t.status === newStatus && t.id !== draggableId);
+    column.splice(destination.index, 0, { ...card, status: newStatus });
+    const orderedIds = column.map((t) => t.id);
+    setTasks(applyOrder(tasks.map((t) => (t.id === draggableId ? { ...t, status: newStatus } : t)), orderedIds));
     try {
-      const updated = await api.updateTask(draggableId, { status: newStatus });
-      setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      toast.success(`Moved to ${newStatus}`);
+      if (destination.droppableId !== source.droppableId) {
+        const updated = await api.updateTask(draggableId, { status: newStatus });
+        setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+        toast.success(`Moved to ${newStatus}`);
+      }
+      await api.reorderTasks(id, newStatus, orderedIds);
     } catch (error) {
       setTasks(before);
       toast.error(error instanceof Error ? error.message : "Couldn't move the task");
+    }
+  };
+
+  // Starting work on a blocked task is allowed, but asked first
+  const handleDragEnd = (result: DropResult) => {
+    const { draggableId, source, destination } = result;
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    const card = tasks.find((t) => t.id === draggableId);
+    const blockers = card ? openBlockers(card) : [];
+    if (destination.droppableId !== source.droppableId && destination.droppableId !== "To Do" && blockers.length) {
+      setBlockedDrop({ result, names: blockers.map((b) => `"${b.title}"`).join(", ") });
+      return;
+    }
+    void moveCard(result);
+  };
+
+  const changeMemberRole = async (userId: string, role: MembershipRole) => {
+    if (!id) return;
+    try {
+      await api.setMemberRole(id, userId, role);
+      toast.success(`Role changed to ${ROLE_LABEL[role]}`);
+      await reloadProject();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change the role");
     }
   };
 
@@ -289,7 +375,7 @@ export function ProjectDetails() {
     try {
       deletingProjectRef.current = true;
       await api.deleteProject(id);
-      toast.success("Project deleted");
+      toast.success("Project moved to Recently deleted");
       navigate("/projects");
     } catch (error) {
       deletingProjectRef.current = false;
@@ -303,7 +389,7 @@ export function ProjectDetails() {
     try {
       await api.deleteTask(taskToDeleteId);
       setTasks((prev) => prev.filter((task) => task.id !== taskToDeleteId));
-      toast.success("Task deleted");
+      toast.success("Task moved to Recently deleted");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete task");
     } finally {
@@ -313,7 +399,7 @@ export function ProjectDetails() {
 
   return (
     <div className="h-full flex flex-col animate-in fade-in duration-500">
-      <div className="flex flex-wrap items-center justify-between gap-6 mb-10">
+      <div className="flex flex-wrap items-center justify-between gap-6 mb-8">
         <div>
           <div className="flex flex-wrap items-center gap-4">
             <h1 className={`text-4xl font-black tracking-tight ${
@@ -346,7 +432,7 @@ export function ProjectDetails() {
               ) : null;
             })}
           </div>
-          {isManager && (
+          {canManage && (
             <>
               <button onClick={() => setIsEditingProject(true)} className="btn-secondary px-4 py-2.5 flex items-center gap-2 text-sm font-bold">
                 <Edit2 className="w-4 h-4" />
@@ -374,47 +460,42 @@ export function ProjectDetails() {
           users={users}
           onClose={() => setIsEditingProject(false)}
           onSaved={(updated) => {
-            setProject((prev) => (prev ? { ...prev, ...updated } : prev));
+            setProject((prev) => (prev ? { ...prev, ...updated, myRole: prev.myRole, milestones: prev.milestones } : prev));
             setEntityName(updated.id, updated.name); // keep the breadcrumb in step with a rename
             setIsEditingProject(false);
+            void reloadProject(); // member changes alter roles
           }}
         />
       )}
       <ConfirmDialog
         open={confirmProjectDelete}
         title="Delete project?"
-        message={`"${project.name}" and all its tasks will be removed for everyone.`}
+        message={`"${project.name}" and its tasks will move to Recently deleted. A manager can restore it within 30 days.`}
         onConfirm={handleDeleteProject}
         onCancel={() => setConfirmProjectDelete(false)}
       />
 
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-          <button
-            onClick={() => setActiveTab("board")}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-              activeTab === "board" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400"
-            }`}
-          >
-            Board
-          </button>
-          <button
-            onClick={() => setActiveTab("team")}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-              activeTab === "team" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400"
-            }`}
-          >
-            Team
-          </button>
-          <button
-            onClick={() => setActiveTab("files")}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-              activeTab === "files" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400"
-            }`}
-          >
-            Files
-          </button>
+      <MilestonesBar projectId={project.id} milestones={milestones} canManage={canManage} onChanged={() => void reloadProject()} />
+
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div role="tablist" className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                activeTab === tab.id ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
+        {project.myRole === "viewer" && (
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">View only</span>
+        )}
       </div>
 
       {activeTab === "board" ? (
@@ -445,9 +526,11 @@ export function ProjectDetails() {
                 >
                   {tasks
                     .filter((task) => task.status === column)
-                    .map((task, index) => (
+                    .map((task, index) => {
+                      const blockers = openBlockers(task);
+                      return (
                       <React.Fragment key={task.id}>
-                      <Draggable draggableId={task.id} index={index}>
+                      <Draggable draggableId={task.id} index={index} isDragDisabled={!canContribute}>
                         {(dragProvided, dragSnapshot) => (
                       <div
                         ref={dragProvided.innerRef}
@@ -457,7 +540,7 @@ export function ProjectDetails() {
                         onClick={() => navigate(`/tasks/${task.id}`)}
                         // mb-4 instead of the list's space-y: the drag library measures each card's own margin
                         // no transition-all: it would animate the library's drag transforms and make cards lag
-                        className={`card p-5 mb-4 h-[180px] flex flex-col justify-between hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-[box-shadow,border-color] group cursor-pointer border border-slate-100 dark:border-slate-800/50 bg-white dark:bg-slate-900 ${
+                        className={`card p-5 mb-4 min-h-[180px] flex flex-col justify-between hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-[box-shadow,border-color] group cursor-pointer border border-slate-100 dark:border-slate-800/50 bg-white dark:bg-slate-900 ${
                           dragSnapshot.isDragging ? "shadow-2xl ring-2 ring-indigo-400 rotate-1" : ""
                         }`}
                       >
@@ -472,7 +555,7 @@ export function ProjectDetails() {
                             }`}>
                               {task.title}
                             </h4>
-                            {isManager && (
+                            {canManage && (
                               <div className="flex items-center shrink-0 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-all">
                                 <button
                                   onClick={(e) => {
@@ -513,6 +596,7 @@ export function ProjectDetails() {
                             >
                               <span style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{task.priority}</span>
                             </span>
+                            {(task.labels ?? []).map((l) => <LabelChip key={l} label={l} />)}
                           </div>
                         </div>
 
@@ -523,6 +607,22 @@ export function ProjectDetails() {
                             ))}
                           </div>
                           <div className="flex items-center gap-3 text-slate-400">
+                            {blockers.length > 0 && (
+                              <span title={`Blocked by ${blockers.map((b) => b.title).join(", ")}`} aria-label="Blocked" className="text-amber-500">
+                                <Lock className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                            {task.recurrence && (
+                              <span title={`Repeats ${task.recurrence.toLowerCase()}`} aria-label={`Repeats ${task.recurrence.toLowerCase()}`}>
+                                <Repeat className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                            {!!task.subtaskTotal && (
+                              <div className={`flex items-center gap-1 ${task.subtaskDone === task.subtaskTotal ? "text-emerald-500" : ""}`} title="Checklist" aria-label={`Checklist ${task.subtaskDone} of ${task.subtaskTotal} done`}>
+                                <CheckSquare className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-bold">{task.subtaskDone}/{task.subtaskTotal}</span>
+                              </div>
+                            )}
                             {task.attachments && task.attachments.length > 0 && (
                               <div className="flex items-center gap-1">
                                 <Paperclip className="w-3.5 h-3.5" />
@@ -539,7 +639,8 @@ export function ProjectDetails() {
                         )}
                       </Draggable>
                       </React.Fragment>
-                    ))}
+                      );
+                    })}
                   {dropProvided.placeholder}
                 </div>
                   )}
@@ -556,7 +657,8 @@ export function ProjectDetails() {
               <thead>
                 <tr className="border-b border-black/5 dark:border-white/5">
                   <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Member</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Role</th>
+                  <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Job title</th>
+                  <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Project role</th>
                   <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Member Status</th>
                   <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Tasks</th>
                 </tr>
@@ -565,6 +667,9 @@ export function ProjectDetails() {
                 {project.teamMemberIds.map((memberId) => {
                   const user = userMap.get(memberId);
                   if (!user) return null;
+                  const memberRole: MembershipRole = user.id === project.managerId ? "OWNER" : project.memberRoles?.[user.id] ?? "CONTRIBUTOR";
+                  // The owner's role and your own stay fixed, so nobody locks themselves out
+                  const roleEditable = canManage && memberRole !== "OWNER" && user.id !== currentUser?.id;
                   return (
                     <tr key={user.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-all group">
                       <td className="px-8 py-6 whitespace-nowrap">
@@ -578,6 +683,20 @@ export function ProjectDetails() {
                       </td>
                       <td className="px-8 py-6 whitespace-nowrap">
                         <span className="text-sm font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{user.title ?? user.role}</span>
+                      </td>
+                      <td className="px-8 py-6 whitespace-nowrap">
+                        {roleEditable ? (
+                          <select
+                            value={memberRole}
+                            onChange={(e) => void changeMemberRole(user.id, e.target.value as MembershipRole)}
+                            aria-label={`Project role for ${user.name}`}
+                            className="input px-3 py-2 text-sm font-bold dark:text-slate-100"
+                          >
+                            {(["MANAGER", "CONTRIBUTOR", "VIEWER"] as MembershipRole[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                          </select>
+                        ) : (
+                          <span className="text-sm font-bold text-slate-700 dark:text-slate-300" data-role={user.name}>{ROLE_LABEL[memberRole]}</span>
+                        )}
                       </td>
                       <td className="px-8 py-6 whitespace-nowrap">
                         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/20">
@@ -594,18 +713,35 @@ export function ProjectDetails() {
             </table>
           </div>
         </div>
-      ) : (
+      ) : activeTab === "files" ? (
         <div className="card p-8">
-          <AttachmentSection projectId={project.id} initialAttachments={project.attachments} />
+          <AttachmentSection projectId={project.id} initialAttachments={project.attachments} canContribute={canContribute} canManage={canManage} />
         </div>
+      ) : activeTab === "timeline" ? (
+        <ProjectTimeline tasks={tasks} milestones={milestones} />
+      ) : (
+        <ProjectActivity projectId={project.id} />
       )}
 
       <ConfirmDialog
         open={!!taskToDeleteId}
         title="Delete Task?"
-        message="Are you sure you want to delete this task? This action cannot be undone."
+        message="It moves to Recently deleted, where a manager can restore it within 30 days."
         onConfirm={deleteTask}
         onCancel={() => setTaskToDeleteId(null)}
+      />
+
+      <ConfirmDialog
+        open={!!blockedDrop}
+        title="This task is blocked"
+        message={blockedDrop ? `It's waiting on ${blockedDrop.names}. Move it anyway?` : undefined}
+        confirmLabel="Move anyway"
+        onConfirm={() => {
+          const pending = blockedDrop;
+          setBlockedDrop(null);
+          if (pending) void moveCard(pending.result);
+        }}
+        onCancel={() => setBlockedDrop(null)}
       />
 
       <AddTaskModal
@@ -634,7 +770,9 @@ export function ProjectDetails() {
         setNewTaskDueDate={setNewTaskDueDate}
         projects={allProjects}
         users={users}
-        statusOnly={!isManager}
+        statusOnly={!canManage}
+        planning={planning}
+        setPlanning={setPlanning}
         modalRef={modalRef}
       />
     </div>

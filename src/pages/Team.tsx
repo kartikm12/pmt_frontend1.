@@ -10,6 +10,7 @@ import { isManager } from "@/utils/roleUtils";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { Avatar } from "@/components/ui/Avatar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { WorkloadPanel } from "@/components/team/WorkloadPanel";
 
 const ROLE_OPTIONS: User["role"][] = [
   "Manager",
@@ -26,6 +27,7 @@ const ROLE_OPTIONS: User["role"][] = [
 export function Team() {
   const { currentUser } = useAuth();
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
+  const [view, setView] = useState<"members" | "workload">("members");
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchQuery, setActiveSearchQuery] = useState("");
@@ -332,7 +334,26 @@ export function Team() {
           document.body
         )}
 
-      <div className="card overflow-hidden">
+      {isManager(currentUser?.role) && (
+        <div role="tablist" className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl -mb-4">
+          {(["members", "workload"] as const).map((v) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === v ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm" : "text-slate-500 dark:text-slate-400"}`}
+            >
+              {v === "members" ? "Members" : "Workload"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === "workload" && <WorkloadPanel />}
+
+      {/* Hidden rather than unmounted so search and menus keep their state */}
+      <div className={`card overflow-hidden ${view === "workload" ? "hidden" : ""}`}>
         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <div className="relative w-full sm:w-80 group">
