@@ -33,6 +33,8 @@ export default defineConfig(({mode}) => {
             if (/[\/](react|react-dom|react-router|react-router-dom|scheduler)[\/]/.test(id)) return 'react';
             if (/[\/](motion|framer-motion|motion-dom|motion-utils)[\/]/.test(id)) return 'motion';
             if (/[\/](socket\.io-client|engine\.io-client|socket\.io-parser|engine\.io-parser)[\/]/.test(id)) return 'socket';
+            // Small helpers the app core shares with the charts must not sit inside the charts file
+            if (/[\/](clsx|tailwind-merge)[\/]/.test(id)) return 'vendor';
             if (/[\/](recharts|d3-[^\/]+|victory-vendor)[\/]/.test(id)) return 'charts';
             if (/[\/]date-fns[\/]/.test(id)) return 'dates';
           },
