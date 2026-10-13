@@ -28,7 +28,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
         if (import.meta.env.VITE_API_URL) {
           // Strip /api suffix to get base URL (e.g. https://pmt-backend.onrender.com/api -> https://pmt-backend.onrender.com)
-          return import.meta.env.VITE_API_URL.replace(/\/api$/, '');
+          return import.meta.env.VITE_API_URL.replace(/\/+$/, '').replace(/\/api$/, '');
         }
         const hostname = window.location.hostname;
         return hostname === 'localhost' || hostname === '127.0.0.1'

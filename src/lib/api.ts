@@ -18,7 +18,8 @@ import type {
 } from "./api-types";
 
 const getApiBaseUrl = () => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  // Accept the backend address with or without "/api" (and a trailing slash); every route lives under /api
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace(/\/+$/, "").replace(/(\/api)?$/, "/api");
   let hostname = window.location.hostname;
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return `http://${hostname}:4000/api`;
