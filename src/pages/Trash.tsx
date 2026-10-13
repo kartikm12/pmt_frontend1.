@@ -5,6 +5,8 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { useAuth } from "@/context/AuthContext";
+import { isManager } from "@/utils/roleUtils";
 
 type TrashData = Awaited<ReturnType<typeof api.getTrash>>;
 const KEEP_DAYS = 30;
@@ -13,6 +15,14 @@ const daysLeft = (deletedAt: string) => Math.max(0, KEEP_DAYS - Math.floor((Date
 
 // Projects and tasks deleted in the last 30 days; company managers bring them back
 export function Trash() {
+  const { currentUser } = useAuth();
+  if (!isManager(currentUser?.role)) {
+    return <div className="card p-10 text-center text-slate-600 dark:text-slate-300">Only managers can see and restore deleted items.</div>;
+  }
+  return <TrashView />;
+}
+
+function TrashView() {
   const navigate = useNavigate();
   const [data, setData] = useState<TrashData | null>(null);
   const [error, setError] = useState("");
