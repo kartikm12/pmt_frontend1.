@@ -230,6 +230,9 @@ export function Tasks() {
   // Selection only keeps rows that are still on screen
   const visibleSelected = filteredTasks.filter((t) => selected.has(t.id));
   const allVisibleSelected = filteredTasks.length > 0 && visibleSelected.length === filteredTasks.length;
+  // Bulk controls appear only when the person may use them on at least one selected task (same rules as runBulk)
+  const canBulkStatus = visibleSelected.some((t) => !!t.myRole && t.myRole !== "viewer");
+  const canBulkManage = visibleSelected.some((t) => t.myRole === "manager");
   const toggleRow = (taskId: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -434,33 +437,40 @@ export function Tasks() {
         <div role="toolbar" aria-label="Bulk actions" className="sticky top-2 z-20 flex flex-wrap items-center gap-3 card px-5 py-3 border-indigo-200 dark:border-indigo-900">
           <span className="text-sm font-bold text-slate-900 dark:text-white">{visibleSelected.length} selected</span>
           {/* Act-on-pick menus: the choice runs at once and the menu goes back to its prompt */}
-          <div className="w-40">
-            <SingleSelectDropdown
-              ariaLabel="Set status of selected tasks"
-              placeholder="Set status…"
-              options={STATUSES.map((s) => ({ id: s, name: s }))}
-              selectedId=""
-              disabled={bulkBusy}
-              onChange={(s) => s && void bulkStatus(s as TaskStatus)}
-            />
-          </div>
-          <div className="w-48">
-            <SingleSelectDropdown
-              ariaLabel="Assign selected tasks to"
-              placeholder="Assign to…"
-              options={users.filter((u) => u.status !== "Suspended").map((u) => ({ id: u.id, name: u.name }))}
-              selectedId=""
-              disabled={bulkBusy}
-              onChange={(id) => id && void bulkAssign(id)}
-            />
-          </div>
-          <button
-            onClick={() => setConfirmBulkDelete(true)}
-            disabled={bulkBusy}
-            className="px-4 py-2 rounded-xl text-sm font-bold border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-          >
-            Delete
-          </button>
+          {canBulkStatus && (
+            <div className="w-40">
+              <SingleSelectDropdown
+                ariaLabel="Set status of selected tasks"
+                placeholder="Set status…"
+                options={STATUSES.map((s) => ({ id: s, name: s }))}
+                selectedId=""
+                disabled={bulkBusy}
+                onChange={(s) => s && void bulkStatus(s as TaskStatus)}
+              />
+            </div>
+          )}
+          {canBulkManage && (
+            <>
+              <div className="w-48">
+                <SingleSelectDropdown
+                  ariaLabel="Assign selected tasks to"
+                  placeholder="Assign to…"
+                  options={users.filter((u) => u.status !== "Suspended").map((u) => ({ id: u.id, name: u.name }))}
+                  selectedId=""
+                  disabled={bulkBusy}
+                  onChange={(id) => id && void bulkAssign(id)}
+                />
+              </div>
+              <button
+                onClick={() => setConfirmBulkDelete(true)}
+                disabled={bulkBusy}
+                className="px-4 py-2 rounded-xl text-sm font-bold border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+              >
+                Delete
+              </button>
+            </>
+          )}
+          {!canBulkStatus && <span className="text-sm text-slate-500 dark:text-slate-400">You can only view these tasks.</span>}
           <button onClick={() => setSelected(new Set())} className="ml-auto p-2 text-slate-400 hover:text-slate-600" aria-label="Clear selection">
             <X className="w-4 h-4" />
           </button>
