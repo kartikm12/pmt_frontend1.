@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import React, { useEffect, useRef, useState } from "react";
 import { User, Lock, Palette, Keyboard, Eye, EyeOff, Sun, Moon, Monitor, Camera, Trash2, Bell } from "lucide-react";
+import { Link } from "react-router-dom";
+import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -126,6 +128,7 @@ export function Settings() {
       setNewPassword("");
       setConfirmPassword("");
       toast.success("Password updated successfully");
+      void refreshCurrentUser();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update password");
     } finally {
@@ -221,8 +224,18 @@ export function Settings() {
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">Change password</h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">At least 8 characters. Mixing letters, numbers and symbols makes it stronger.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2" data-password-changed>
+                  {currentUser?.passwordChangedAt
+                    ? <>Password last changed <span className="font-semibold text-slate-700 dark:text-slate-200" title={new Date(currentUser.passwordChangedAt).toLocaleString()}>{formatDistanceToNow(new Date(currentUser.passwordChangedAt), { addSuffix: true })}</span></>
+                    : "No password change recorded yet."}
+                </p>
               </div>
-              <PasswordField label="Current Password" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" />
+              <div className="space-y-1.5">
+                <PasswordField label="Current Password" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" />
+                <p className="text-right text-sm">
+                  <Link to="/forgot-password" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Forgot password?</Link>
+                </p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <PasswordField label="New Password" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />

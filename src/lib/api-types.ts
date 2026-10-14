@@ -25,6 +25,8 @@ export interface User {
   roleLocked?: boolean;
   status?: UserStatus;
   emailNotifications?: boolean;
+  // Only filled for the signed-in person (from /auth/me)
+  passwordChangedAt?: string | null;
   projects?: Project[];
 }
 

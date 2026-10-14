@@ -52,6 +52,7 @@ export type RawUser = {
   roleLocked?: boolean;
   status?: "ACTIVE" | "INVITED" | "OFFLINE" | "SUSPENDED";
   emailNotifications?: boolean;
+  passwordChangedAt?: string | null;
 };
 
 export type RawProject = {
@@ -156,6 +157,7 @@ export function mapUser(raw: RawUser): User {
     role: roleMap[raw.role],
     roleLocked: raw.roleLocked,
     emailNotifications: raw.emailNotifications,
+    passwordChangedAt: raw.passwordChangedAt,
     avatar: createAvatar(raw.fullName, raw.avatarUrl),
     bio: raw.bio ?? undefined,
     phone: raw.phone ?? undefined,
