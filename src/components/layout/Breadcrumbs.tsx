@@ -10,7 +10,7 @@ export function Breadcrumbs() {
   if (location.pathname === "/") return null;
 
   return (
-    <nav className="flex items-center space-x-2 text-sm text-zinc-500 dark:text-zinc-400 mb-6 animate-in fade-in slide-in-from-left-4 duration-500">
+    <nav aria-label="Breadcrumb" className="flex items-center space-x-2 text-sm text-zinc-500 dark:text-zinc-400 mb-6 animate-in fade-in slide-in-from-left-4 duration-500">
       <Link 
         to="/" 
         className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1"
@@ -22,7 +22,9 @@ export function Breadcrumbs() {
       {pathnames.map((value, index) => {
         const last = index === pathnames.length - 1;
         const to = `/${pathnames.slice(0, index + 1).join("/")}`;
-        const name = getEntityName(value) || (value.charAt(0).toUpperCase() + value.slice(1).replace(/-/g, " "));
+        // Pages whose address isn't their name in the menu
+        const PAGE_NAMES: Record<string, string> = { trash: "Recently deleted", audit: "Audit log" };
+        const name = getEntityName(value) || PAGE_NAMES[value] || (value.charAt(0).toUpperCase() + value.slice(1).replace(/-/g, " "));
 
         return (
           <div key={to} className="flex items-center space-x-2">

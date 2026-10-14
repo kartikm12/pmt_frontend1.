@@ -778,8 +778,9 @@ export const api = {
 
   async getTrash() {
     return request<{
-      projects: Array<{ id: string; name: string; deletedAt: string; _count: { tasks: number } }>;
-      tasks: Array<{ id: string; title: string; deletedAt: string; project: { id: string; name: string } }>;
+      keepDays?: number;
+      projects: Array<{ id: string; name: string; deletedAt: string; deletedBy?: string | null; restorableTasks?: number; _count: { tasks: number } }>;
+      tasks: Array<{ id: string; title: string; deletedAt: string; deletedBy?: string | null; project: { id: string; name: string } }>;
     }>("/projects/trash");
   },
 
