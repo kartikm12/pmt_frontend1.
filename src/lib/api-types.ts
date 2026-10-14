@@ -122,6 +122,8 @@ export interface Task {
   assignees?: User[];
   comments?: Comment[];
   attachments?: Attachment[];
+  // Number of files, from the task page's own data (before the Files section loads them)
+  attachmentCount?: number;
   activity?: Activity[];
   labels: string[];
   estimateHours?: number | null;

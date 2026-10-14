@@ -70,6 +70,7 @@ export function TaskDetails() {
   const [watchBusy, setWatchBusy] = useState(false);
   const [tab, setTab] = useState<"comments" | "activity" | "time" | "files">("comments");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [fileCount, setFileCount] = useState<number | null>(null);
   const [statusBusy, setStatusBusy] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null);
 
@@ -572,7 +573,7 @@ export function TaskDetails() {
               ["comments", `Comments ${task.comments?.length ?? 0}`],
               ["activity", "Activity"],
               ["time", `Time ${loggedHours}h`],
-              ["files", `Files ${task.attachments?.length ?? 0}`]
+              ["files", `Files ${fileCount ?? task.attachmentCount ?? task.attachments?.length ?? 0}`]
             ] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -774,7 +775,7 @@ export function TaskDetails() {
 
           {tab === "files" && (
             <div className="card p-6">
-              <AttachmentSection taskId={task.id} initialAttachments={task.attachments} canContribute={canContribute} canManage={canManage} />
+              <AttachmentSection taskId={task.id} initialAttachments={task.attachments} canContribute={canContribute} canManage={canManage} onCountChange={setFileCount} />
             </div>
           )}
         </div>

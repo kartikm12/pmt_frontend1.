@@ -8,6 +8,7 @@ import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
 import { isManager } from "@/utils/roleUtils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { FilePreview, isImage, isPdf } from "@/components/FilePreview";
 
 interface AttachmentSectionProps {
   projectId?: string;
@@ -16,6 +17,7 @@ interface AttachmentSectionProps {
   // Project role: viewers can't upload; project managers can delete anyone's file
   canContribute?: boolean;
   canManage?: boolean;
+  onCountChange?: (count: number) => void;
 }
 
 const getFileIcon = (fileType: string) => {
@@ -39,8 +41,10 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 // One shared empty list: a fresh `[]` default each render made the effect below refetch in a loop
 const NO_ATTACHMENTS: Attachment[] = [];
 
-export function AttachmentSection({ projectId, taskId, initialAttachments = NO_ATTACHMENTS, canContribute = true, canManage }: AttachmentSectionProps) {
+export function AttachmentSection({ projectId, taskId, initialAttachments = NO_ATTACHMENTS, canContribute = true, canManage, onCountChange }: AttachmentSectionProps) {
   const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
+  // Count is reported only once the real list is known, so a parent's badge never flashes 0
+  const [known, setKnown] = useState(initialAttachments.length > 0);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { socket } = useSocket();
@@ -52,9 +56,13 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
       setAttachments(initialAttachments);
     } else {
       // Load attachments if none were provided
-      api.getAttachments(projectId, taskId).then(setAttachments).catch(console.error);
+      api.getAttachments(projectId, taskId).then((list) => { setAttachments(list); setKnown(true); }).catch(console.error);
     }
   }, [projectId, taskId, initialAttachments]);
+
+  useEffect(() => {
+    if (known) onCountChange?.(attachments.length);
+  }, [known, attachments.length]);
 
   useEffect(() => {
     if (!socket) return;
@@ -111,6 +119,9 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
   };
 
   const [fileToDelete, setFileToDelete] = useState<Attachment | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  // Thumbnails that failed to load (old or missing file) fall back to the file icon
+  const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(new Set());
 
   const handleDelete = async (id: string) => {
     setFileToDelete(null);
@@ -164,13 +175,36 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
               key={file.id}
               className="group relative flex items-center gap-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all"
             >
-              <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                {getFileIcon(file.fileType)}
-              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewIndex(attachments.indexOf(file))}
+                aria-label={`Preview ${file.name}`}
+                className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                {isImage(file) && !brokenThumbs.has(file.id) ? (
+                  <img
+                    src={fileUrl(file.url)}
+                    alt=""
+                    loading="lazy"
+                    data-thumb={file.id}
+                    onError={() => setBrokenThumbs((s) => new Set(s).add(file.id))}
+                    className="w-full h-full object-cover"
+                  />
+                ) : isPdf(file) ? (
+                  <span className="w-full h-full flex items-center justify-center bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 text-[11px] font-black">PDF</span>
+                ) : (
+                  getFileIcon(file.fileType)
+                )}
+              </button>
               <div className="flex-1 min-w-0 pr-16">
-                <p className="text-sm font-bold text-slate-900 dark:text-white truncate" title={file.name}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewIndex(attachments.indexOf(file))}
+                  className="block max-w-full text-left text-sm font-bold text-slate-900 dark:text-white truncate hover:text-indigo-600 dark:hover:text-indigo-400"
+                  title={file.name}
+                >
                   {file.name}
-                </p>
+                </button>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                   {formatFileSize(file.fileSize)} • {safeFormat(file.createdAt, "MMM d, yyyy")}
                   {file.user && ` • by ${file.user.name}`}
@@ -200,6 +234,10 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
             </div>
           ))}
         </div>
+      )}
+
+      {previewIndex !== null && attachments[previewIndex] && (
+        <FilePreview files={attachments} index={previewIndex} onIndex={setPreviewIndex} onClose={() => setPreviewIndex(null)} />
       )}
 
       <ConfirmDialog

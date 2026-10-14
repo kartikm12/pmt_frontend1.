@@ -71,6 +71,7 @@ export type RawProject = {
 
 export type RawTask = {
   id: string;
+  _count?: { attachments?: number };
   createdBy?: { id: string; fullName: string } | null;
   projectId: string;
   title: string;
@@ -288,6 +289,7 @@ export function mapProject(raw: RawProject): Project {
 export function mapTask(raw: RawTask): Task {
   return {
     id: raw.id,
+    attachmentCount: raw._count?.attachments,
     projectId: raw.projectId,
     title: raw.title,
     description: raw.description ?? "",
