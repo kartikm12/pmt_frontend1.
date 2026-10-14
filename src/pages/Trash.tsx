@@ -77,7 +77,7 @@ function TrashView() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 max-w-4xl">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Recently deleted</h1>

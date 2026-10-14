@@ -137,7 +137,7 @@ export function Settings() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Settings</h1>
         <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">Your profile, password and how the app looks.</p>
