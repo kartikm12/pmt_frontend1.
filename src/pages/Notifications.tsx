@@ -4,6 +4,7 @@ import { Bell, Check, Trash2, Calendar, Layout, CheckCircle2, AlertCircle, Info,
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { notificationTarget } from "@/utils/notificationTarget";
 import type { Notification, NotificationType } from "@/lib/api-types";
 import { useNotifications } from "@/context/NotificationContext";
 import { safeFormat } from "@/utils/dateUtils";
@@ -56,13 +57,9 @@ export function Notifications() {
         await markAsRead(n.id);
       }
       
-      if (n.taskId) {
-        navigate(`/tasks/${n.taskId}`);
-      } else if (n.projectId) {
-        navigate(`/projects/${n.projectId}`);
-      } else if (n.title === "Sign-up waiting for approval") {
-        navigate("/team");
-      }
+      const target = notificationTarget(n);
+      if (target.gone) toast.info(target.gone);
+      else if (target.to) navigate(target.to);
     } catch (error) {
       console.error("Failed to process notification click", error);
     }

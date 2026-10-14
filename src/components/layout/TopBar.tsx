@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { notificationTarget } from "@/utils/notificationTarget";
 import type { Notification } from "@/lib/api-types";
 import { safeFormat } from "@/utils/dateUtils";
 import { toast } from "sonner";
@@ -70,13 +71,9 @@ export function TopBar({ onMenuClick, onSearchClick }: TopBarProps) {
       
       setIsNotificationsOpen(false);
       
-      if (n.taskId) {
-        navigate(`/tasks/${n.taskId}`);
-      } else if (n.projectId) {
-        navigate(`/projects/${n.projectId}`);
-      } else if (n.title === "Sign-up waiting for approval") {
-        navigate("/team");
-      }
+      const target = notificationTarget(n);
+      if (target.gone) toast.info(target.gone);
+      else if (target.to) navigate(target.to);
     } catch (error) {
       console.error("Failed to process notification click", error);
     }

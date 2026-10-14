@@ -176,6 +176,6 @@ export interface Notification {
   isRead: boolean;
   readAt?: string;
   createdAt: string;
-  project?: { id: string; name: string };
-  task?: { id: string; title: string };
+  project?: { id: string; name: string; deletedAt?: string | null };
+  task?: { id: string; title: string; deletedAt?: string | null };
 }
