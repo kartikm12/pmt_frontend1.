@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { Paperclip, File, X, Download, Trash2, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Paperclip, File as FileIcon, X, Download, Trash2, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
 import { api, fileUrl, mapAttachment } from "@/lib/api";
 import type { Attachment } from "@/lib/api-types";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ const getFileIcon = (fileType: string) => {
   if (fileType.startsWith("image/")) return <ImageIcon className="w-5 h-5 text-blue-500" />;
   if (fileType.includes("pdf")) return <FileText className="w-5 h-5 text-red-500" />;
   if (fileType.includes("word") || fileType.includes("officedocument")) return <FileText className="w-5 h-5 text-indigo-500" />;
-  return <File className="w-5 h-5 text-slate-500" />;
+  return <FileIcon className="w-5 h-5 text-slate-500" />;
 };
 
 const formatFileSize = (bytes: number) => {
@@ -93,28 +93,65 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
     };
   }, [socket, taskId, projectId]);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > MAX_FILE_BYTES) {
-      toast.error("File size exceeds the 10 MB limit");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
+  // One path for the picker, drag-and-drop and paste: same type/size checks, one file after another
+  const uploadFiles = async (files: File[]) => {
+    if (!files.length || !canContribute) return;
     setIsUploading(true);
-    try {
-      const newAttachment = await api.uploadAttachment(file, projectId, taskId);
-      setAttachments((prev) => 
-        prev.some(a => a.id === newAttachment.id) ? prev : [newAttachment, ...prev]
-      );
-      toast.success("File uploaded successfully");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to upload file");
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+    let uploaded = 0;
+    for (const file of files) {
+      const ext = file.name.includes(".") ? `.${file.name.split(".").pop()!.toLowerCase()}` : "";
+      if (!ACCEPTED_FILES.split(",").includes(ext)) {
+        toast.error(`"${file.name}" isn't a file type PMT accepts`);
+        continue;
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        toast.error(files.length > 1 ? `"${file.name}" is over the 10 MB limit` : "File size exceeds the 10 MB limit");
+        continue;
+      }
+      try {
+        const newAttachment = await api.uploadAttachment(file, projectId, taskId);
+        setAttachments((prev) => (prev.some((a) => a.id === newAttachment.id) ? prev : [newAttachment, ...prev]));
+        uploaded++;
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : `Couldn't upload "${file.name}"`);
+      }
+    }
+    setIsUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (uploaded) toast.success(uploaded === 1 ? "File uploaded successfully" : `${uploaded} files uploaded`);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => void uploadFiles(Array.from(e.target.files ?? []));
+
+  // Paste (Ctrl+V) anywhere on the page while these files are shown; plain text pastes are left alone.
+  // Screenshots arrive as "image.png", so they get a dated name instead.
+  useEffect(() => {
+    if (!canContribute) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []);
+      if (!files.length) return;
+      e.preventDefault();
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", ".");
+      void uploadFiles(files.map((f) => (/^image\.(png|jpe?g|gif|webp)$/i.test(f.name) ? new File([f], `Pasted ${stamp}.${f.name.split(".").pop()}`, { type: f.type }) : f)));
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  });
+
+  // Drag and drop onto the whole section; the counter stops the highlight flickering over child elements
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  const hasFiles = (e: React.DragEvent) => canContribute && Array.from(e.dataTransfer.types).includes("Files");
+  const dropProps = {
+    onDragEnter: (e: React.DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth.current++; setDragging(true); },
+    onDragOver: (e: React.DragEvent) => { if (hasFiles(e)) e.preventDefault(); },
+    onDragLeave: (e: React.DragEvent) => { if (!hasFiles(e)) return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); },
+    onDrop: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragging(false);
+      void uploadFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -135,7 +172,12 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
   };
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4" data-drop-zone {...dropProps}>
+      {dragging && (
+        <div className="absolute inset-0 z-20 rounded-2xl border-2 border-dashed border-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/80 flex items-center justify-center pointer-events-none" data-drop-overlay>
+          <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-2"><Paperclip className="w-4 h-4" /> Drop files to upload</p>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Paperclip className="w-4 h-4 text-indigo-500" />
@@ -159,6 +201,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
           ref={fileInputRef}
           onChange={handleFileChange}
           accept={ACCEPTED_FILES}
+          multiple
           className="hidden"
         />
       </div>
@@ -167,6 +210,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
         <div className="text-center py-8 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
           <Paperclip className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
           <p className="text-xs text-slate-500 dark:text-slate-400">No attachments yet</p>
+          {canContribute && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Drag files here, or paste with Ctrl+V</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
