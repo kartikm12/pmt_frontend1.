@@ -16,6 +16,7 @@ import { emptyPlanning, planningError, planningFromTask, planningToPayload, type
 import { downloadCsv } from "@/lib/csv";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { RepeatChip } from "@/components/RepeatPicker";
 
 const STATUSES: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 
@@ -509,8 +510,9 @@ export function Tasks() {
                     <span className={`flex items-center gap-1 text-xs mt-1 ${late ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>
                       <Clock className="w-3.5 h-3.5" /> {safeFormat(task.dueDate, "MMM d, yyyy")}
                     </span>
-                    {(task.labels.length > 0 || !!task.subtaskTotal) && (
+                    {(task.labels.length > 0 || !!task.subtaskTotal || !!task.recurrence) && (
                       <span className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <RepeatChip rule={task.recurrence} />
                         {task.labels.map((l) => <LabelChip key={l} label={l} />)}
                         {!!task.subtaskTotal && <span className="text-[10px] font-bold text-slate-500">☑ {task.subtaskDone}/{task.subtaskTotal}</span>}
                       </span>
@@ -569,8 +571,9 @@ export function Tasks() {
                             {task.title}
                           </div>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-1">{task.description}</span>
-                          {(task.labels.length > 0 || !!task.subtaskTotal) && (
+                          {(task.labels.length > 0 || !!task.subtaskTotal || !!task.recurrence) && (
                             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              <RepeatChip rule={task.recurrence} />
                               {task.labels.map((l) => <LabelChip key={l} label={l} />)}
                               {!!task.subtaskTotal && (
                                 <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${task.subtaskDone === task.subtaskTotal ? "text-emerald-600" : "text-slate-500"}`}>

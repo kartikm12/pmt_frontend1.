@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, FolderKanban, User as UserIcon } from "lucid
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isSameMonth, startOfMonth, startOfWeek } from "date-fns";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type { Milestone, Project, Task, User } from "@/lib/api-types";
+import type { Project, Task, User } from "@/lib/api-types";
 import { deadlineError, safeFormat } from "@/utils/dateUtils";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
@@ -21,7 +21,7 @@ const STATUS_DOT: Record<string, string> = {
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MAX_PER_DAY = 3;
 
-// Month view of task deadlines and milestones; project managers drag a task to another day to move its deadline
+// Month view of task deadlines; project managers drag a task to another day to move its deadline
 export function Calendar() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -29,7 +29,6 @@ export function Calendar() {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [milestones, setMilestones] = useState<Array<Milestone & { projectId: string; projectName: string }>>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [projectFilter, setProjectFilter] = useState("All");
   const [personFilter, setPersonFilter] = useState("All");
@@ -38,13 +37,11 @@ export function Calendar() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Milestones are extra: the calendar still works if they fail to load
-    Promise.all([api.getTasks(), api.getProjects(), api.getTeam(), api.getMilestones().catch(() => [])])
-      .then(([t, p, u, m]) => {
+    Promise.all([api.getTasks(), api.getProjects(), api.getTeam()])
+      .then(([t, p, u]) => {
         setTasks(t);
         setProjects(p);
         setUsers(u);
-        setMilestones(m);
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : "Couldn't load the calendar"))
       .finally(() => setIsLoading(false));
@@ -87,17 +84,6 @@ export function Calendar() {
     return map;
   }, [tasks, projectFilter, personFilter]);
 
-  const milestonesByDay = useMemo(() => {
-    const map = new Map<string, Array<Milestone & { projectId: string; projectName: string }>>();
-    for (const m of milestones) {
-      if (!m.dueDate || (projectFilter !== "All" && m.projectId !== projectFilter)) continue;
-      const key = safeFormat(m.dueDate, "yyyy-MM-dd", "");
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(m);
-    }
-    return map;
-  }, [milestones, projectFilter]);
-
   const moveTask = async (taskId: string, dayKey: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task || safeFormat(task.dueDate, "yyyy-MM-dd", "") === dayKey) return;
@@ -126,7 +112,7 @@ export function Calendar() {
   const todayKey = format(new Date(), "yyyy-MM-dd");
   // Phones get an agenda (days with something due); the 7-column grid needs ~720px
   const wide = useMediaQuery("(min-width: 640px)");
-  const agendaDays = days.filter((d) => isSameMonth(d, month)).map((d) => format(d, "yyyy-MM-dd")).filter((k) => (byDay.get(k)?.length ?? 0) + (milestonesByDay.get(k)?.length ?? 0) > 0);
+  const agendaDays = days.filter((d) => isSameMonth(d, month)).map((d) => format(d, "yyyy-MM-dd")).filter((k) => (byDay.get(k)?.length ?? 0) > 0);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -171,13 +157,6 @@ export function Calendar() {
                     {format(new Date(key + "T00:00:00"), "EEE, MMM d")}{key === todayKey ? " · Today" : ""}
                   </p>
                   <div className="space-y-1.5">
-                    {(milestonesByDay.get(key) ?? []).map((m) => (
-                      <button key={m.id} onClick={() => navigate(`/projects/${m.projectId}`)} className="w-full flex items-center gap-2 text-left text-sm font-bold text-amber-700 dark:text-amber-400">
-                        <span className="w-2 h-2 rotate-45 bg-amber-500 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{m.name}</span>
-                        <span className="text-xs font-normal text-slate-400 truncate">· {m.projectName}</span>
-                      </button>
-                    ))}
                     {(byDay.get(key) ?? []).map((t) => (
                       <button key={t.id} onClick={() => navigate(`/tasks/${t.id}`)} data-task={t.title} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-left">
                         <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[t.status] ?? "bg-slate-400"}`} aria-hidden="true" />
@@ -202,7 +181,6 @@ export function Calendar() {
             {days.map((day) => {
               const key = format(day, "yyyy-MM-dd");
               const dayTasks = byDay.get(key) ?? [];
-              const dayMilestones = milestonesByDay.get(key) ?? [];
               const expanded = expandedDay === key;
               const shown = expanded ? dayTasks : dayTasks.slice(0, MAX_PER_DAY);
               return (
@@ -225,16 +203,11 @@ export function Calendar() {
                   <span className={`text-xs font-bold self-end w-6 h-6 flex items-center justify-center rounded-full ${key === todayKey ? "bg-indigo-600 text-white" : isSameMonth(day, month) ? "text-slate-700 dark:text-slate-300" : "text-slate-400"}`}>
                     {format(day, "d")}
                   </span>
-                  {dayMilestones.map((m) => (
-                    <button key={m.id} onClick={() => navigate(`/projects/${m.projectId}`)} title={`${m.projectName}: ${m.name}`} className="flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-400 truncate text-left">
-                      <span className="w-2 h-2 rotate-45 bg-amber-500 shrink-0" />
-                      <span className="truncate">{m.name}</span>
-                    </button>
-                  ))}
                   {shown.map((t) => (
                     <button
                       key={t.id}
-                      draggable={t.myRole === "manager"}
+                      // Done tasks and tasks of finished projects stay where they are
+                      draggable={t.myRole === "manager" && t.status !== "Completed" && !["Completed", "Cancelled"].includes(projects.find((p) => p.id === t.projectId)?.status ?? "")}
                       onDragStart={(e) => e.dataTransfer.setData("text/task-id", t.id)}
                       onClick={() => navigate(`/tasks/${t.id}`)}
                       title={`${t.title} · ${t.project?.name ?? ""} · ${t.status}`}

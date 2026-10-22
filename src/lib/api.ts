@@ -9,7 +9,6 @@ import type {
   User,
   Attachment,
   MembershipRole,
-  Milestone,
   ProjectRole,
   Recurrence,
   Subtask,
@@ -66,7 +65,6 @@ export type RawProject = {
   members?: Array<{ userId: string; role?: MembershipRole; user?: RawUser }>;
   manager?: RawUser;
   myRole?: ProjectRole;
-  milestones?: Milestone[];
 };
 
 export type RawTask = {
@@ -94,8 +92,6 @@ export type RawTask = {
   estimateHours?: number | null;
   startDate?: string | null;
   recurrence?: Recurrence | null;
-  milestoneId?: string | null;
-  milestone?: Milestone | null;
   subtaskTotal?: number;
   subtaskDone?: number;
   subtasks?: Subtask[];
@@ -276,12 +272,11 @@ export function mapProject(raw: RawProject): Project {
     name: raw.name,
     description: raw.description ?? "",
     managerId: raw.managerId,
-    startDate: raw.startDate ?? new Date().toISOString(),
-    dueDate: raw.dueDate ?? new Date().toISOString(),
+    startDate: raw.startDate ?? "",
+    dueDate: raw.dueDate ?? "",
     teamMemberIds: raw.members?.map((member) => member.userId) ?? [],
     status: mapProjectStatus(raw.status),
     myRole: raw.myRole,
-    milestones: raw.milestones,
     memberRoles: Object.fromEntries((raw.members ?? []).filter((m) => m.role).map((m) => [m.userId, m.role!]))
   };
 }
@@ -314,8 +309,6 @@ export function mapTask(raw: RawTask): Task {
     estimateHours: raw.estimateHours ?? null,
     startDate: raw.startDate ?? null,
     recurrence: raw.recurrence ?? null,
-    milestoneId: raw.milestoneId ?? null,
-    milestone: raw.milestone ?? null,
     subtaskTotal: raw.subtaskTotal ?? raw.subtasks?.length ?? 0,
     subtaskDone: raw.subtaskDone ?? raw.subtasks?.filter((s) => s.done).length ?? 0,
     subtasks: raw.subtasks,
@@ -415,6 +408,8 @@ async function send<T>(path: string, options: RequestInit = {}) {
   if (!response.ok) {
     const error: any = new Error(readableError(data));
     error.issues = data?.issues;
+    // Extra details some answers carry, e.g. { code: "OPEN_TASKS", openTasks: 4 }
+    error.data = data;
     error.status = response.status;
 
     // Any 401 on a signed-in request means the session is gone (expired, replaced, or account removed)
@@ -448,7 +443,6 @@ export type PlanningPayload = {
   estimateHours?: number | null;
   startDate?: string | null;
   recurrence?: Recurrence | null;
-  milestoneId?: string | null;
   blockedByIds?: string[];
 };
 
@@ -458,7 +452,6 @@ function planningBody(p: PlanningPayload) {
     estimateHours: p.estimateHours,
     startDate: p.startDate === undefined ? undefined : p.startDate ? new Date(p.startDate).toISOString() : null,
     recurrence: p.recurrence,
-    milestoneId: p.milestoneId,
     blockedByIds: p.blockedByIds
   };
 }
@@ -644,15 +637,18 @@ export const api = {
     return mapProject(response);
   },
 
-  async updateProject(projectId: string, payload: Partial<Project> & { managerId?: string }) {
+  // closeOpenTasks: completing a project that still has open tasks marks them Done too
+  async updateProject(projectId: string, payload: Partial<Project> & { managerId?: string }, opts: { closeOpenTasks?: boolean } = {}) {
     const response = await request<RawProject>(`/projects/${projectId}`, {
       method: "PUT",
       body: JSON.stringify({
         name: payload.name,
         description: payload.description,
         status: payload.status ? toApiProjectStatus(payload.status) : undefined,
-        startDate: payload.startDate,
-        dueDate: payload.dueDate,
+        // A cleared date is "no date" (null); the server refuses ""
+        startDate: payload.startDate === undefined ? undefined : payload.startDate || null,
+        dueDate: payload.dueDate === undefined ? undefined : payload.dueDate || null,
+        closeOpenTasks: opts.closeOpenTasks || undefined,
         managerId: payload.managerId,
         memberIds: payload.teamMemberIds
       })
@@ -734,17 +730,6 @@ export const api = {
     return request(`/projects/${projectId}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ role }) });
   },
 
-  async saveMilestone(projectId: string, milestone: { id?: string; name: string; dueDate?: string | null }) {
-    const body = JSON.stringify({ name: milestone.name, dueDate: milestone.dueDate ? new Date(milestone.dueDate).toISOString() : null });
-    return milestone.id
-      ? request<Milestone>(`/projects/${projectId}/milestones/${milestone.id}`, { method: "PATCH", body })
-      : request<Milestone>(`/projects/${projectId}/milestones`, { method: "POST", body });
-  },
-
-  async deleteMilestone(projectId: string, milestoneId: string) {
-    return request(`/projects/${projectId}/milestones/${milestoneId}`, { method: "DELETE" });
-  },
-
   async addSubtask(taskId: string, title: string) {
     return request<Subtask>(`/tasks/${taskId}/subtasks`, { method: "POST", body: JSON.stringify({ title }) });
   },
@@ -773,9 +758,9 @@ export const api = {
     return request(`/tasks/reorder`, { method: "POST", body: JSON.stringify({ projectId, status: toApiTaskStatus(status), orderedIds }) });
   },
 
-  // Every dated milestone you can see, in one request (the Calendar)
-  async getMilestones() {
-    return request<Array<Milestone & { projectId: string; projectName: string }>>("/projects/milestones");
+  // The next deadlines a repeat rule gives from a deadline (yyyy-MM-dd); the server owns the date maths
+  async repeatPreview(rule: string, due: string) {
+    return request<{ rule: string; next: string[] }>(`/tasks/repeat-preview?rule=${encodeURIComponent(rule)}&due=${encodeURIComponent(due)}`);
   },
 
   async getTrash() {

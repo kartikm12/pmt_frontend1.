@@ -1,12 +1,13 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown, Loader2, FolderKanban } from 'lucide-react';
-import type { Milestone, Task, TaskPriority, TaskStatus } from '@/lib/api-types';
+import type { Task, TaskPriority, TaskStatus } from '@/lib/api-types';
 import { MultiSelectDropdown } from '@/components/ui/MultiSelectDropdown';
 import { SingleSelectDropdown } from '@/components/ui/SingleSelectDropdown';
 import { LabelInput } from '@/components/ui/LabelChip';
 import { api } from '@/lib/api';
 import type { PlanningState } from '@/lib/planning';
+import { RepeatPicker } from '@/components/RepeatPicker';
 
 interface AddTaskModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ interface AddTaskModalProps {
   modalRef?: React.RefObject<HTMLDivElement>;
   handleBackdropClick?: (e: React.MouseEvent) => void;
   statusOnly?: boolean;
-  // Labels, estimate, start date, repeat, milestone, blocked-by (managers only)
+  // Labels, estimate, start date, repeat, blocked-by (managers only)
   planning?: PlanningState;
   setPlanning?: (planning: PlanningState) => void;
 }
@@ -69,12 +70,10 @@ export function AddTaskModal({
   setPlanning
 }: AddTaskModalProps) {
   const [submitting, setSubmitting] = React.useState(false);
-  // Milestones and other tasks of the chosen project, for the planning pickers
-  const [milestones, setMilestones] = React.useState<Milestone[]>([]);
+  // Other tasks of the chosen project, for the Blocked by picker
   const [projectTasks, setProjectTasks] = React.useState<Task[]>([]);
   React.useEffect(() => {
     if (!isOpen || statusOnly || !planning || !newTaskProjectId) {
-      setMilestones([]);
       setProjectTasks([]);
       return;
     }
@@ -82,16 +81,12 @@ export function AddTaskModal({
     api.getProjectBundle(newTaskProjectId)
       .then((b) => {
         if (cancelled) return;
-        setMilestones(b.project.milestones ?? []);
         setProjectTasks(b.tasks);
-        // Moving the task to another project: milestone and blockers must belong to that project
+        // Moving the task to another project: blockers must belong to that project
         if (planning && setPlanning) {
           const taskIds = new Set(b.tasks.map((t) => t.id));
-          const milestoneOk = !planning.milestoneId || (b.project.milestones ?? []).some((m) => m.id === planning.milestoneId);
           const blockers = planning.blockedByIds.filter((x) => taskIds.has(x));
-          if (!milestoneOk || blockers.length !== planning.blockedByIds.length) {
-            setPlanning({ ...planning, milestoneId: milestoneOk ? planning.milestoneId : "", blockedByIds: blockers });
-          }
+          if (blockers.length !== planning.blockedByIds.length) setPlanning({ ...planning, blockedByIds: blockers });
         }
       })
       .catch(() => undefined);
@@ -157,7 +152,6 @@ export function AddTaskModal({
     ? [
         planning.labels.length ? `${planning.labels.length} label${planning.labels.length === 1 ? "" : "s"}` : "",
         planning.estimateHours ? `${planning.estimateHours}h` : "",
-        milestones.find((m) => m.id === planning.milestoneId)?.name ?? "",
         planning.recurrence ? "repeats" : "",
         planning.blockedByIds.length ? `${planning.blockedByIds.length} blocker${planning.blockedByIds.length === 1 ? "" : "s"}` : ""
       ].filter(Boolean).join(" · ")
@@ -363,28 +357,10 @@ export function AddTaskModal({
                             className="w-full input px-3 py-2.5 text-sm dark:text-slate-100"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className={label}>Milestone</label>
-                          <SingleSelectDropdown ariaLabel="Milestone"
-                            options={[{ id: "", name: "No milestone" }, ...milestones.map((m) => ({ id: m.id, name: m.name }))]}
-                            selectedId={planning.milestoneId}
-                            onChange={(id) => setPlanning({ ...planning, milestoneId: id })}
-                            disabled={!newTaskProjectId}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className={label}>Repeat</label>
-                          <SingleSelectDropdown ariaLabel="Repeat"
-                            options={[
-                              { id: "", name: "Doesn't repeat" },
-                              { id: "DAILY", name: "Every day" },
-                              { id: "WEEKLY", name: "Every week" },
-                              { id: "MONTHLY", name: "Every month" }
-                            ]}
-                            selectedId={planning.recurrence}
-                            onChange={(id) => setPlanning({ ...planning, recurrence: id as PlanningState["recurrence"] })}
-                          />
-                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className={label}>Repeat</label>
+                        <RepeatPicker value={planning.recurrence} due={newTaskDueDate ?? ""} onChange={(rule) => setPlanning({ ...planning, recurrence: rule })} />
                       </div>
                       <div className="space-y-1">
                         <label className={label}>Blocked by</label>

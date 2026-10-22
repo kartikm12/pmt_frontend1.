@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Milestone, Task } from "@/lib/api-types";
+import type { Task } from "@/lib/api-types";
 import { safeFormat } from "@/utils/dateUtils";
 
 const ROW = 36;
@@ -12,8 +12,8 @@ const STATUS_COLOR: Record<string, string> = {
   Completed: "bg-emerald-500"
 };
 
-// Read-only Gantt: bars from start (or creation) to due date, milestone diamonds, dependency lines
-export function ProjectTimeline({ tasks, milestones }: { tasks: Task[]; milestones: Milestone[] }) {
+// Read-only Gantt: bars from start (or creation) to due date, dependency lines
+export function ProjectTimeline({ tasks }: { tasks: Task[] }) {
   const navigate = useNavigate();
   const rows = useMemo(() => {
     return tasks
@@ -26,12 +26,11 @@ export function ProjectTimeline({ tasks, milestones }: { tasks: Task[]; mileston
       .sort((a, b) => a.start - b.start || a.end - b.end);
   }, [tasks]);
 
-  const datedMilestones = milestones.filter((m) => m.dueDate);
-  if (!rows.length && !datedMilestones.length) {
+  if (!rows.length) {
     return <div className="card p-10 text-center text-slate-500 dark:text-slate-400">Add due dates to tasks to see them on the timeline.</div>;
   }
 
-  const times = [...rows.flatMap((r) => [r.start, r.end]), ...datedMilestones.map((m) => new Date(m.dueDate!).getTime()), Date.now()];
+  const times = [...rows.flatMap((r) => [r.start, r.end]), Date.now()];
   const min = Math.min(...times) - DAY;
   const max = Math.max(...times) + DAY;
   const pct = (t: number) => ((t - min) / (max - min)) * 100;
@@ -50,15 +49,6 @@ export function ProjectTimeline({ tasks, milestones }: { tasks: Task[]; mileston
           <div className="relative h-8 border-b border-slate-200 dark:border-slate-800">
             {ticks.map((t) => (
               <span key={t} className="absolute text-[10px] text-slate-400 -translate-x-1/2" style={{ left: `${pct(t)}%` }}>{safeFormat(new Date(t), "MMM d")}</span>
-            ))}
-            {datedMilestones.map((m) => (
-              <span
-                key={m.id}
-                title={`${m.name} · ${safeFormat(m.dueDate, "MMM d")}`}
-                className="absolute bottom-0 w-3 h-3 rotate-45 bg-amber-500 -translate-x-1/2 translate-y-1/2"
-                style={{ left: `${pct(new Date(m.dueDate!).getTime())}%` }}
-                aria-label={`Milestone ${m.name}`}
-              />
             ))}
           </div>
         </div>
@@ -109,7 +99,6 @@ export function ProjectTimeline({ tasks, milestones }: { tasks: Task[]; mileston
         </div>
         <div className="flex flex-wrap gap-4 mt-4 text-[11px] text-slate-500 dark:text-slate-400">
           {Object.entries(STATUS_COLOR).map(([s, c]) => <span key={s} className="flex items-center gap-1.5"><span className={`w-3 h-2 rounded ${c}`} />{s}</span>)}
-          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rotate-45 bg-amber-500" />Milestone</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-px bg-red-400" />Today</span>
         </div>
       </div>

@@ -14,6 +14,7 @@ import { useBusy } from "@/lib/useBusy";
 import { isManager } from "@/utils/roleUtils";
 import { Avatar } from "@/components/ui/Avatar";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export function Projects() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -323,7 +324,7 @@ export function Projects() {
                     </div>
                     <div>
                       <h3 className={`text-lg font-bold transition-colors ${
-                        project.status !== "Completed" && isOverdue(project.dueDate)
+                        !["Completed", "Cancelled", "On Hold"].includes(project.status) && isOverdue(project.dueDate)
                           ? "text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300"
                           : "text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                       }`}>
@@ -448,6 +449,23 @@ export function EditProjectModal({ project, users, onClose, onSaved }: {
       const updated = await api.updateProject(editing.id, editing);
       onSaved(updated);
       toast.success("Project updated successfully!");
+    } catch (error: any) {
+      if (error?.data?.code === "OPEN_TASKS") setOpenTasks(Number(error.data.openTasks) || 1);
+      else toast.error(error instanceof Error ? error.message : "Failed to update project");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // "This project still has N open tasks": complete it and mark them Done in one go
+  const [openTasks, setOpenTasks] = useState(0);
+  const completeWithTasks = async () => {
+    setOpenTasks(0);
+    setIsSaving(true);
+    try {
+      const updated = await api.updateProject(editing.id, editing, { closeOpenTasks: true });
+      onSaved(updated);
+      toast.success("Project completed and its open tasks marked Done");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update project");
     } finally {
@@ -456,6 +474,15 @@ export function EditProjectModal({ project, users, onClose, onSaved }: {
   };
 
   return (
+    <>
+    <ConfirmDialog
+      open={openTasks > 0}
+      title="Complete this project?"
+      message={`${openTasks} task${openTasks === 1 ? " is" : "s are"} still open. ${openTasks === 1 ? "It" : "They"}'ll be marked Done, and the project becomes read-only until someone reopens it.`}
+      confirmLabel={`Mark ${openTasks} done and complete`}
+      onConfirm={completeWithTasks}
+      onCancel={() => setOpenTasks(0)}
+    />
     <ProjectModal
       title="Edit Project"
       onClose={onClose}
@@ -478,6 +505,7 @@ export function EditProjectModal({ project, users, onClose, onSaved }: {
       submitLabel={isSaving ? "Saving…" : "Save Changes"}
       busy={isSaving}
     />
+    </>
   );
 }
 
@@ -498,7 +526,7 @@ function ProjectModal(props: {
   memberIds?: string[];
   setMemberIds?: (ids: string[]) => void;
   users?: User[];
-  // Template: copy another project's tasks, checklists and milestones (dates shift to the new start)
+  // Template: copy another project's tasks and checklists (dates shift to the new start)
   copyFromId?: string;
   setCopyFromId?: (id: string) => void;
   copyOptions?: Project[];
@@ -563,7 +591,7 @@ function ProjectModal(props: {
                 selectedId={props.copyFromId ?? ""}
                 onChange={(id) => props.setCopyFromId?.(id)}
               />
-              <p className="text-xs text-slate-500 dark:text-slate-400">Tasks, checklists and milestones are copied as new, with dates moved to this project's start. Copies are assigned to you.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tasks and checklists are copied as new, with dates moved to this project's start. Copies are assigned to you.</p>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">

@@ -33,15 +33,8 @@ export interface User {
 // What the signed-in person may do in one project (from the server; company-wide managers are "manager" everywhere)
 export type ProjectRole = "manager" | "contributor" | "viewer";
 export type MembershipRole = "OWNER" | "MANAGER" | "CONTRIBUTOR" | "VIEWER";
-export type Recurrence = "DAILY" | "WEEKLY" | "MONTHLY";
-
-export interface Milestone {
-  id: string;
-  name: string;
-  dueDate?: string | null;
-  taskTotal?: number;
-  taskDone?: number;
-}
+// A repeat rule (see lib/repeat.ts), e.g. "FREQ=WEEKLY;BYDAY=WE"; older tasks may still say DAILY / WEEKLY / MONTHLY
+export type Recurrence = string;
 
 export interface Project {
   id: string;
@@ -54,7 +47,6 @@ export interface Project {
   status: ProjectStatus;
   attachments?: Attachment[];
   myRole?: ProjectRole;
-  milestones?: Milestone[];
   memberRoles?: Record<string, MembershipRole>;
 }
 
@@ -129,8 +121,6 @@ export interface Task {
   estimateHours?: number | null;
   startDate?: string | null;
   recurrence?: Recurrence | null;
-  milestoneId?: string | null;
-  milestone?: Milestone | null;
   subtaskTotal?: number;
   subtaskDone?: number;
   subtasks?: Subtask[];

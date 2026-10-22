@@ -16,11 +16,11 @@ import { useAuth } from "@/context/AuthContext";
 import { AttachmentSection } from "@/components/AttachmentSection";
 import { Avatar } from "@/components/ui/Avatar";
 import { LabelChip } from "@/components/ui/LabelChip";
-import { MilestonesBar } from "@/components/project/MilestonesBar";
 import { ProjectTimeline } from "@/components/project/ProjectTimeline";
 import { ProjectActivity } from "@/components/project/ProjectActivity";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
+import { RepeatChip } from "@/components/RepeatPicker";
 
 const COLUMNS: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 const TABS = [
@@ -71,7 +71,7 @@ export function ProjectDetails() {
   const [confirmProjectDelete, setConfirmProjectDelete] = useState(false);
   const deletingProjectRef = useRef(false); // our own delete shouldn't also trigger the "was deleted" notice
 
-  // Re-read the project (my role, milestones, member roles) after changes made here or elsewhere
+  // Re-read the project (my role, member roles) after changes made here or elsewhere
   const reloadProject = async () => {
     if (!id) return;
     try {
@@ -159,7 +159,7 @@ export function ProjectDetails() {
 
       const handleProjectUpdated = (data: any) => {
         if (data.id !== id) return;
-        // The event carries no "my role" or milestones, so read the project again
+        // The event carries no "my role", so read the project again
         void reloadProject();
 
         if (data.members) {
@@ -198,14 +198,6 @@ export function ProjectDetails() {
   }, [socket, id]);
 
   const userMap = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
-  // Milestone progress follows the board live instead of the counts loaded with the page
-  const milestones = useMemo(
-    () => (project?.milestones ?? []).map((m) => {
-      const own = tasks.filter((t) => t.milestoneId === m.id);
-      return { ...m, taskTotal: own.length, taskDone: own.filter((t) => t.status === "Completed").length };
-    }),
-    [project?.milestones, tasks]
-  );
 
   if (loadError) {
     return (
@@ -224,8 +216,12 @@ export function ProjectDetails() {
   }
 
   // Per-project role from the server: managers plan, contributors move cards, viewers only look
+  // A completed or cancelled project is read-only until reopened (the server enforces it too);
+  // canManage still covers project-level actions such as Edit Project, which is how it's reopened
+  const closed = project.status === "Completed" || project.status === "Cancelled";
   const canManage = project.myRole === "manager";
-  const canContribute = !!project.myRole && project.myRole !== "viewer";
+  const canManageWork = canManage && !closed;
+  const canContribute = !!project.myRole && project.myRole !== "viewer" && !closed;
 
   const openModal = (column: TaskStatus = "To Do", task?: Task) => {
     if (task) {
@@ -401,11 +397,17 @@ export function ProjectDetails() {
 
   return (
     <div className="h-full flex flex-col animate-in fade-in duration-500">
+      {closed && (
+        <div role="note" data-closed-banner className="mb-6 flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-300">
+          <Lock className="w-4 h-4 shrink-0" />
+          This project is {project.status === "Completed" ? "completed" : "cancelled"}. Its tasks can be viewed but not changed{canManage ? ". To make changes, use Edit Project and set it back to Active." : "."}
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-6 mb-8">
         <div>
           <div className="flex flex-wrap items-center gap-4">
             <h1 className={`text-4xl font-black tracking-tight ${
-              project.status !== "Completed" && isOverdue(project.dueDate)
+              !["Completed", "Cancelled", "On Hold"].includes(project.status) && isOverdue(project.dueDate)
                 ? "text-red-600 dark:text-red-400"
                 : "text-slate-900 dark:text-white"
             }`}>
@@ -447,10 +449,12 @@ export function ProjectDetails() {
                 <Trash2 className="w-4 h-4" />
                 Delete
               </button>
-              <button onClick={() => openModal("To Do")} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-                <Plus className="w-5 h-5" />
-                New Task
-              </button>
+              {!closed && (
+                <button onClick={() => openModal("To Do")} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+                  <Plus className="w-5 h-5" />
+                  New Task
+                </button>
+              )}
             </>
           )}
         </div>
@@ -462,7 +466,7 @@ export function ProjectDetails() {
           users={users}
           onClose={() => setIsEditingProject(false)}
           onSaved={(updated) => {
-            setProject((prev) => (prev ? { ...prev, ...updated, myRole: prev.myRole, milestones: prev.milestones } : prev));
+            setProject((prev) => (prev ? { ...prev, ...updated, myRole: prev.myRole } : prev));
             setEntityName(updated.id, updated.name); // keep the breadcrumb in step with a rename
             setIsEditingProject(false);
             void reloadProject(); // member changes alter roles
@@ -477,7 +481,6 @@ export function ProjectDetails() {
         onCancel={() => setConfirmProjectDelete(false)}
       />
 
-      <MilestonesBar projectId={project.id} milestones={milestones} canManage={canManage} onChanged={() => void reloadProject()} />
 
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div role="tablist" className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
@@ -557,7 +560,7 @@ export function ProjectDetails() {
                             }`}>
                               {task.title}
                             </h4>
-                            {canManage && (
+                            {canManageWork && (
                               <div className="flex items-center shrink-0 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-all">
                                 <button
                                   onClick={(e) => {
@@ -598,6 +601,7 @@ export function ProjectDetails() {
                             >
                               <span style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{task.priority}</span>
                             </span>
+                            <RepeatChip rule={task.recurrence} />
                             {(task.labels ?? []).map((l) => <LabelChip key={l} label={l} />)}
                           </div>
                         </div>
@@ -717,10 +721,10 @@ export function ProjectDetails() {
         </div>
       ) : activeTab === "files" ? (
         <div className="card p-8">
-          <AttachmentSection projectId={project.id} initialAttachments={project.attachments} canContribute={canContribute} canManage={canManage} />
+          <AttachmentSection projectId={project.id} initialAttachments={project.attachments} canContribute={canContribute} canManage={canManageWork} />
         </div>
       ) : activeTab === "timeline" ? (
-        <ProjectTimeline tasks={tasks} milestones={milestones} />
+        <ProjectTimeline tasks={tasks} />
       ) : (
         <ProjectActivity projectId={project.id} />
       )}

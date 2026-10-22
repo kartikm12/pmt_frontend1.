@@ -175,7 +175,7 @@ export function Dashboard() {
                   >
                     <div>
                       <div className={`text-sm font-medium transition-colors ${
-                        project.status !== "Completed" && isOverdue(project.dueDate)
+                        !["Completed", "Cancelled", "On Hold"].includes(project.status) && isOverdue(project.dueDate)
                           ? "text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300"
                           : "text-zinc-900 dark:text-zinc-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                       }`}>

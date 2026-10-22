@@ -8,11 +8,10 @@ export interface PlanningState {
   estimateHours: string;
   startDate: string;
   recurrence: "" | Recurrence;
-  milestoneId: string;
   blockedByIds: string[];
 }
 
-export const emptyPlanning: PlanningState = { labels: [], estimateHours: "", startDate: "", recurrence: "", milestoneId: "", blockedByIds: [] };
+export const emptyPlanning: PlanningState = { labels: [], estimateHours: "", startDate: "", recurrence: "", blockedByIds: [] };
 
 export function planningFromTask(task: Task): PlanningState {
   return {
@@ -20,7 +19,6 @@ export function planningFromTask(task: Task): PlanningState {
     estimateHours: task.estimateHours != null ? String(task.estimateHours) : "",
     startDate: task.startDate ? safeFormat(task.startDate, "yyyy-MM-dd", "") : "",
     recurrence: task.recurrence ?? "",
-    milestoneId: task.milestoneId ?? "",
     blockedByIds: task.blockedBy?.map((b) => b.id) ?? []
   };
 }
@@ -32,7 +30,6 @@ export function planningToPayload(p: PlanningState): PlanningPayload {
     estimateHours: hours !== null && Number.isFinite(hours) ? hours : null,
     startDate: p.startDate || null,
     recurrence: p.recurrence || null,
-    milestoneId: p.milestoneId || null,
     blockedByIds: p.blockedByIds
   };
 }

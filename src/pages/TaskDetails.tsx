@@ -37,6 +37,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
+import { RepeatSummary } from "@/components/RepeatPicker";
 
 export function TaskDetails() {
   const { id } = useParams();
@@ -249,8 +250,10 @@ export function TaskDetails() {
   }, [socket, id]);
 
   // Per-project role from the server: managers edit everything, contributors move status and log work, viewers read
-  const canManage = task?.myRole === "manager";
-  const canContribute = !!task?.myRole && task.myRole !== "viewer";
+  // Tasks of a completed or cancelled project are read-only until the project is reopened
+  const projectClosed = task?.project?.status === "Completed" || task?.project?.status === "Cancelled";
+  const canManage = task?.myRole === "manager" && !projectClosed;
+  const canContribute = !!task?.myRole && task.myRole !== "viewer" && !projectClosed;
   const watching = !!task?.watchers?.some((w) => w.id === currentUser?.id);
 
   const toggleWatch = async () => {
@@ -540,7 +543,13 @@ export function TaskDetails() {
         </div>
       </div>
 
-      {task.myRole === "viewer" && (
+      {projectClosed && (
+        <div role="note" data-closed-banner className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-300">
+          <Lock className="w-4 h-4 shrink-0" />
+          This task's project is {task.project?.status === "Completed" ? "completed" : "cancelled"}, so the task can't be changed. Reopen the project to make changes.
+        </div>
+      )}
+      {task.myRole === "viewer" && !projectClosed && (
         <div role="note" className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-300">
           <Eye className="w-4 h-4" />
           You can view this task but not change it or comment. Ask a project manager for a bigger role.
@@ -799,7 +808,7 @@ export function TaskDetails() {
           <SideRow label="Estimate">
             {task.estimateHours != null ? `${task.estimateHours}h (${loggedHours}h logged)` : loggedHours ? `${loggedHours}h logged` : "—"}
           </SideRow>
-          <SideRow label="Milestone">{task.milestone?.name ?? "—"}</SideRow>
+          {task.recurrence && <SideRow label="Repeats"><RepeatSummary task={task} /></SideRow>}
           <SideRow label="Labels">
             {task.labels.length ? <div className="flex flex-wrap justify-end gap-1">{task.labels.map((l) => <LabelChip key={l} label={l} />)}</div> : "—"}
           </SideRow>
