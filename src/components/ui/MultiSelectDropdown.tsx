@@ -89,7 +89,8 @@ export function MultiSelectDropdown({
               <button 
                 type="button" 
                 onClick={(e) => removeOption(option.id, e)}
-                className="hover:bg-indigo-200 dark:hover:bg-indigo-500/30 rounded-full p-0.5 transition-colors"
+                aria-label={`Remove ${option.name}`}
+                className="w-6 h-6 -my-1 -mr-1.5 flex items-center justify-center hover:bg-indigo-200 dark:hover:bg-indigo-500/30 rounded-full transition-colors"
               >
                 <X className="w-3 h-3" />
               </button>

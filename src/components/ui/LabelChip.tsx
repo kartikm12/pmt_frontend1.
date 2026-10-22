@@ -59,7 +59,7 @@ export function LabelInput({ labels, onChange }: { labels: string[]; onChange: (
         onBlur={add}
         placeholder={labels.length ? "" : "bug, client, design…"}
         aria-label="Add a label"
-        className="flex-1 min-w-[80px] bg-transparent text-sm outline-none dark:text-slate-100"
+        className="flex-1 min-w-[80px] min-h-[28px] bg-transparent text-sm outline-none dark:text-slate-100"
       />
     </div>
   );

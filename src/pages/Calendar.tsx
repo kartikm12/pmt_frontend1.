@@ -118,7 +118,7 @@ export function Calendar() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-wrap items-center gap-3 card p-4">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight mr-2">Calendar</h1>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <button onClick={() => setMonth((m) => addMonths(m, -1))} aria-label="Previous month" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
             <ChevronLeft className="w-5 h-5" />
           </button>

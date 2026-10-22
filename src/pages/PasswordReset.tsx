@@ -13,7 +13,7 @@ function Card({ title, subtitle, children }: { title: string; subtitle: string; 
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-white text-center">{title}</h1>
         <p className="text-zinc-500 dark:text-zinc-400 mt-2 mb-8 text-center">{subtitle}</p>
         {children}
-        <Link to="/login" className="mt-6 text-sm text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">Back to sign in</Link>
+        <Link to="/login" className="mt-4 inline-block py-2 text-sm text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">Back to sign in</Link>
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ export function Breadcrumbs() {
     <nav aria-label="Breadcrumb" className="flex items-center min-w-0 space-x-2 text-sm text-zinc-500 dark:text-zinc-400 mb-6 animate-in fade-in slide-in-from-left-4 duration-500">
       <Link 
         to="/" 
-        className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1"
+        className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1 p-1 -m-1"
       >
         <Home className="w-4 h-4" />
         <span className="sr-only">Home</span>
@@ -33,7 +33,7 @@ export function Breadcrumbs() {
               // A long name (e.g. a pasted link as a task title) is cut with "…" instead of widening the page
               <span className="font-medium text-zinc-900 dark:text-zinc-100 truncate" title={name}>{name}</span>
             ) : (
-              <Link to={to} className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors truncate max-w-[12rem]" title={name}>
+              <Link to={to} className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors truncate max-w-[12rem] py-1" title={name}>
                 {name}
               </Link>
             )}

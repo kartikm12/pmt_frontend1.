@@ -508,7 +508,7 @@ export function TaskDetails() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           {project && (
-            <Link to={`/projects/${project.id}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600">
+            <Link to={`/projects/${project.id}`} className="inline-flex items-center gap-1.5 py-1 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600">
               <FolderKanban className="w-4 h-4" />
               {project.name}
             </Link>
@@ -717,7 +717,7 @@ export function TaskDetails() {
                             onClick={() => setCommentFiles((prev) => prev.filter((_, j) => j !== i))}
                             disabled={isSubmitting}
                             aria-label={`Remove ${f.name}`}
-                            className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                            className="w-6 h-6 shrink-0 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>

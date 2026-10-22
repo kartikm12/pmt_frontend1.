@@ -64,3 +64,11 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-slate-400 dark:bg-slate-600;
 }
+
+/* Touch screens: text boxes at 16px so tapping one doesn't zoom the page in (iOS does this below 16px) */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  textarea {
+    font-size: 16px;
+  }
+}

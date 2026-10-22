@@ -159,7 +159,7 @@ export function Dashboard() {
           <div className="card overflow-hidden">
             <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Projects Hub</h2>
-              <Link to="/projects" className="text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:underline underline-offset-4">
+              <Link to="/projects" className="text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:underline underline-offset-4 py-1">
                 View all
               </Link>
             </div>
@@ -215,7 +215,7 @@ export function Dashboard() {
           <div className="card overflow-hidden">
             <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Upcoming Deadlines</h2>
-              <Link to="/tasks" className="text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:underline underline-offset-4">
+              <Link to="/tasks" className="text-sm text-indigo-600 dark:text-indigo-400 font-bold hover:underline underline-offset-4 py-1">
                 View all
               </Link>
             </div>

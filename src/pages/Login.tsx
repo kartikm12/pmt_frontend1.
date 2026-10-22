@@ -180,7 +180,7 @@ export function Login() {
             setMode(mode === "login" ? "register" : "login");
             setFormError("");
           }}
-          className="mt-6 text-sm text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+          className="mt-4 py-2 text-sm text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
         >
           {mode === "login" ? "Need an account? Register" : "Already have an account? Sign in"}
         </button>

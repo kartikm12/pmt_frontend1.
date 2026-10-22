@@ -87,6 +87,7 @@ export function TopBar({ onMenuClick, onSearchClick }: TopBarProps) {
       <div className="flex items-center gap-6 flex-1">
         <button 
           onClick={onMenuClick}
+          aria-label="Open menu"
           className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all active:scale-95"
         >
           <Menu className="w-5 h-5" />
@@ -149,7 +150,7 @@ export function TopBar({ onMenuClick, onSearchClick }: TopBarProps) {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-4 z-50 overflow-hidden"
+                  className="fixed inset-x-3 top-[4.25rem] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-4 z-50 overflow-hidden"
                 >
                   <div className="px-6 pb-3 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
                     <h3 className="font-bold text-slate-900 dark:text-white">Notifications</h3>

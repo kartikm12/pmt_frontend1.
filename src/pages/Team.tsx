@@ -248,7 +248,8 @@ export function Team() {
                       <button
                         type="button"
                         onClick={() => setShowInvitePassword(!showInvitePassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                        aria-label={showInvitePassword ? "Hide password" : "Show password"}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                         tabIndex={-1}
                       >
                         {showInvitePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
