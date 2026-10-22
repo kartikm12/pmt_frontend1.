@@ -17,17 +17,18 @@ export function Logo({ className, size = "md", light = false, variant = "default
     lg: "h-20"
   };
 
+  const imgClass = cn("w-auto max-w-[220px] object-contain", light ? "invert" : "", sizeClasses[size]);
   return (
     <div className={cn("flex items-center justify-center p-2", className)}>
-      <img
-        src={variant === "black" ? companyLogoBlack : companyLogo}
-        alt="Entro Labs"
-        className={cn(
-          "w-auto max-w-[220px] object-contain",
-          light ? "invert" : "",
-          sizeClasses[size]
-        )}
-      />
+      {variant === "black" ? (
+        <>
+          {/* The black logo vanishes on a dark background: dark theme shows the white one (as the sidebar does) */}
+          <img src={companyLogoBlack} alt="Entro Labs" data-logo="light-theme" className={cn(imgClass, "dark:hidden")} />
+          <img src={companyLogo} alt="Entro Labs" data-logo="dark-theme" className={cn(imgClass, "hidden dark:block")} />
+        </>
+      ) : (
+        <img src={companyLogo} alt="Entro Labs" className={imgClass} />
+      )}
     </div>
   );
 }

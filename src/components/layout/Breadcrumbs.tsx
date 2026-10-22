@@ -10,7 +10,7 @@ export function Breadcrumbs() {
   if (location.pathname === "/") return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center space-x-2 text-sm text-zinc-500 dark:text-zinc-400 mb-6 animate-in fade-in slide-in-from-left-4 duration-500">
+    <nav aria-label="Breadcrumb" className="flex items-center min-w-0 space-x-2 text-sm text-zinc-500 dark:text-zinc-400 mb-6 animate-in fade-in slide-in-from-left-4 duration-500">
       <Link 
         to="/" 
         className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1"
@@ -27,12 +27,13 @@ export function Breadcrumbs() {
         const name = getEntityName(value) || PAGE_NAMES[value] || (value.charAt(0).toUpperCase() + value.slice(1).replace(/-/g, " "));
 
         return (
-          <div key={to} className="flex items-center space-x-2">
-            <ChevronRight className="w-4 h-4 text-zinc-300 dark:text-zinc-700" />
+          <div key={to} className={`flex items-center space-x-2 min-w-0 ${last ? "" : "shrink-0"}`}>
+            <ChevronRight className="w-4 h-4 shrink-0 text-zinc-300 dark:text-zinc-700" />
             {last ? (
-              <span className="font-medium text-zinc-900 dark:text-zinc-100">{name}</span>
+              // A long name (e.g. a pasted link as a task title) is cut with "…" instead of widening the page
+              <span className="font-medium text-zinc-900 dark:text-zinc-100 truncate" title={name}>{name}</span>
             ) : (
-              <Link to={to} className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+              <Link to={to} className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors truncate max-w-[12rem]" title={name}>
                 {name}
               </Link>
             )}

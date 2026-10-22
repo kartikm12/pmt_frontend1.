@@ -215,7 +215,8 @@ function TrendCard({ data }: { data: ReportData }) {
             <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={32} tick={{ fontSize: 11, fill: "#94a3b8" }} />
             <Tooltip
               cursor={{ stroke: "#94a3b8", strokeDasharray: "3 3" }}
-              contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
+              contentStyle={{ borderRadius: 12, border: "1px solid var(--chart-tip-border)", background: "var(--chart-tip-bg)", color: "var(--chart-tip-fg)", fontSize: 12 }}
+              labelStyle={{ color: "var(--chart-tip-fg)", fontWeight: 600 }}
               formatter={(v: number, k: string) => [v, k === "completed" ? "Completed" : "New"]}
             />
             <Line type="linear" dataKey="completed" stroke={LINE.completed} strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2 }} />

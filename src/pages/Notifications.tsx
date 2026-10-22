@@ -194,7 +194,7 @@ function FilterButton({ active, onClick, label, count }: { active: boolean; onCl
   return (
     <button onClick={onClick} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${active ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>
       {label}
-      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600" : "bg-slate-200 dark:bg-slate-800 text-slate-500"}`}>
+      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
         {count}
       </span>
     </button>
