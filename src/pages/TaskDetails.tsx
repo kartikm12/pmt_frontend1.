@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Calendar, Edit2, Trash2, Eye, EyeOff, Repeat, Lock, MoreHorizontal, FolderKanban, CheckSquare, Link as LinkIcon } from "lucide-react";
+import { Calendar, Edit2, Trash2, Eye, EyeOff, Repeat, Lock, MoreHorizontal, FolderKanban, CheckSquare, Link as LinkIcon, Paperclip, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Activity, Project, Task, TaskLink, User, TaskPriority, TaskStatus } from "@/lib/api-types";
@@ -38,6 +38,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { RepeatSummary } from "@/components/RepeatPicker";
+import { CommentFiles } from "@/components/task/CommentFiles";
+import { ACCEPTED_FILES, MAX_COMMENT_FILES, fileProblem, formatFileSize, namePasted } from "@/lib/files";
 
 export function TaskDetails() {
   const { id } = useParams();
@@ -48,6 +50,11 @@ export function TaskDetails() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
+  // Files waiting to be posted with the next comment (picked, dropped or pasted)
+  const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [composerDragging, setComposerDragging] = useState(false);
+  const composerDragDepth = useRef(0);
+  const commentFileInput = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -237,14 +244,25 @@ export function TaskDetails() {
         if (data.taskId === id) api.getTask(id).then(setTask).catch(() => undefined);
       };
 
+      const handleAttachmentDeleted = (data: { id: string; taskId?: string }) => {
+        if (data.taskId !== id) return;
+        setTask((prev) => prev && {
+          ...prev,
+          attachments: prev.attachments?.filter((a) => a.id !== data.id),
+          comments: prev.comments?.map((c) => (c.attachments?.some((a) => a.id === data.id) ? { ...c, attachments: c.attachments.filter((a) => a.id !== data.id) } : c))
+        });
+      };
+
       socket.on("task_updated", handleTaskUpdated);
       socket.on("comment_added", handleCommentAdded);
       socket.on("comment_updated", handleCommentUpdated);
+      socket.on("attachment_deleted", handleAttachmentDeleted);
 
       return () => {
         socket.off("task_updated", handleTaskUpdated);
         socket.off("comment_added", handleCommentAdded);
         socket.off("comment_updated", handleCommentUpdated);
+        socket.off("attachment_deleted", handleAttachmentDeleted);
       };
     }
   }, [socket, id]);
@@ -291,16 +309,47 @@ export function TaskDetails() {
     else void saveStatus(status);
   };
 
+  // Same type/size rules as the Files tab; a file already waiting (same name and size) isn't added twice; at most 5
+  const addCommentFiles = (incoming: File[]) => {
+    if (!incoming.length) return;
+    const several = incoming.length > 1;
+    const ok = incoming.filter((f) => {
+      const problem = fileProblem(f, several);
+      if (problem) toast.error(problem);
+      return !problem;
+    });
+    setCommentFiles((prev) => {
+      const fresh = ok.filter((f) => !prev.some((p) => p.name === f.name && p.size === f.size));
+      const room = MAX_COMMENT_FILES - prev.length;
+      if (fresh.length > room) toast.error(`Attach up to ${MAX_COMMENT_FILES} files to one comment`);
+      return [...prev, ...fresh.slice(0, Math.max(0, room))];
+    });
+    if (commentFileInput.current) commentFileInput.current.value = "";
+  };
+
+  const composerHasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
+  const composerDropProps = {
+    onDragEnter: (e: React.DragEvent) => { if (!composerHasFiles(e)) return; e.preventDefault(); composerDragDepth.current++; setComposerDragging(true); },
+    onDragOver: (e: React.DragEvent) => { if (composerHasFiles(e)) e.preventDefault(); },
+    onDragLeave: (e: React.DragEvent) => { if (!composerHasFiles(e)) return; composerDragDepth.current = Math.max(0, composerDragDepth.current - 1); if (!composerDragDepth.current) setComposerDragging(false); },
+    onDrop: (e: React.DragEvent) => {
+      if (!composerHasFiles(e)) return;
+      e.preventDefault();
+      composerDragDepth.current = 0;
+      setComposerDragging(false);
+      addCommentFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id || !newComment.trim() || isSubmitting) return;
+    if (!id || (!newComment.trim() && !commentFiles.length) || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
-      // Assuming api.postComment exists or we use fetch
-      // Let's check if we need to add postComment to api.ts
-      await api.postComment(id, newComment);
+      await api.postComment(id, newComment, commentFiles);
       setNewComment("");
+      setCommentFiles([]);
       const updatedActivity = await api.getActivity(`?taskId=${id}`);
       setActivity(updatedActivity);
       const updatedTask = await api.getTask(id);
@@ -318,8 +367,9 @@ export function TaskDetails() {
   const [editingText, setEditingText] = useState("");
   const [isSavingComment, setIsSavingComment] = useState(false);
 
+  const editingHasFiles = !!task?.comments?.find((c) => c.id === editingCommentId)?.attachments?.length;
   const handleSaveComment = async () => {
-    if (!editingCommentId || !editingText.trim() || isSavingComment) return;
+    if (!editingCommentId || (!editingText.trim() && !editingHasFiles) || isSavingComment) return;
     setIsSavingComment(true);
     try {
       const saved = await api.updateComment(editingCommentId, editingText);
@@ -354,7 +404,11 @@ export function TaskDetails() {
     if (!id) return;
     try {
       await api.deleteComment(commentId);
-      setTask((prev) => prev && { ...prev, comments: prev.comments?.filter((c) => c.id !== commentId) });
+      setTask((prev) => prev && {
+        ...prev,
+        comments: prev.comments?.filter((c) => c.id !== commentId),
+        attachments: prev.attachments?.filter((a) => a.commentId !== commentId)
+      });
       toast.success("Comment deleted");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete comment");
@@ -598,7 +652,12 @@ export function TaskDetails() {
 
           {(tab === "comments" || tab === "activity") && (
             <div className="card p-5 space-y-6">
-              {canContribute && tab === "comments" && <form onSubmit={handlePostComment} className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8">
+              {canContribute && tab === "comments" && <form onSubmit={handlePostComment} className="relative flex flex-col sm:flex-row gap-3 sm:gap-4 mb-8" data-comment-composer {...composerDropProps}>
+                {composerDragging && (
+                  <div className="absolute inset-0 z-20 rounded-xl border-2 border-dashed border-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/80 flex items-center justify-center pointer-events-none" data-drop-overlay>
+                    <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-2"><Paperclip className="w-4 h-4" /> Drop to attach to this comment</p>
+                  </div>
+                )}
                 <div className="flex-1 relative">
                   {showSuggestions && filteredSuggestions.length > 0 && (
                     <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-2 duration-200">
@@ -634,17 +693,68 @@ export function TaskDetails() {
                     value={newComment}
                     onChange={handleCommentChange}
                     onKeyDown={handleKeyDown}
+                    onPaste={(e) => {
+                      // A pasted screenshot/file is attached; pasted text is left to the textarea
+                      const files: File[] = Array.from(e.clipboardData.files as FileList);
+                      if (!files.length) return;
+                      e.preventDefault();
+                      addCommentFiles(namePasted(files));
+                    }}
+                    aria-label="Write a comment"
                     placeholder="Type @ to mention team members..."
                     className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none min-h-[100px]"
                     rows={3}
                   />
+                  {commentFiles.length > 0 && (
+                    <ul className="mt-2 flex flex-wrap gap-2" aria-label="Files to attach">
+                      {commentFiles.map((f, i) => (
+                        <li key={`${f.name}-${f.size}`} className="flex items-center gap-1.5 max-w-[16rem] h-8 pl-2.5 pr-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs" data-pending-file>
+                          <Paperclip className="w-3.5 h-3.5 shrink-0 text-indigo-500" />
+                          <span className="truncate font-medium text-slate-800 dark:text-slate-100" title={f.name}>{f.name}</span>
+                          <span className="shrink-0 text-[10px] text-slate-500 dark:text-slate-400">{formatFileSize(f.size)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setCommentFiles((prev) => prev.filter((_, j) => j !== i))}
+                            disabled={isSubmitting}
+                            aria-label={`Remove ${f.name}`}
+                            className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => commentFileInput.current?.click()}
+                      disabled={isSubmitting || commentFiles.length >= MAX_COMMENT_FILES}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Paperclip className="w-3.5 h-3.5" /> Attach
+                    </button>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {commentFiles.length ? `${commentFiles.length} of ${MAX_COMMENT_FILES} files` : "or drag files here, or paste a screenshot"}
+                    </span>
+                    <input
+                      ref={commentFileInput}
+                      type="file"
+                      multiple
+                      accept={ACCEPTED_FILES}
+                      className="hidden"
+                      data-comment-file-input
+                      onChange={(e) => addCommentFiles(Array.from(e.target.files ?? []))}
+                    />
+                  </div>
                 </div>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !newComment.trim()}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold transition-all h-fit self-end w-full sm:w-auto"
+                  disabled={isSubmitting || (!newComment.trim() && !commentFiles.length)}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold transition-all h-fit self-end w-full sm:w-auto flex items-center justify-center gap-2"
                 >
-                  Post
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isSubmitting && commentFiles.length ? "Uploading…" : "Post"}
                 </button>
               </form>}
 
@@ -660,7 +770,8 @@ export function TaskDetails() {
                   // >1s apart = changed after posting (createdAt and updatedAt are both set on insert)
                   edited: !!c.updatedAt && new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime() > 1000,
                   isSystem: false,
-                  user: c.user
+                  user: c.user,
+                  files: c.attachments ?? []
                 })) || [])
               ]
                 .filter((e) => (tab === "activity") === e.isSystem)
@@ -740,14 +851,14 @@ export function TaskDetails() {
                               <button
                                 type="button"
                                 onClick={handleSaveComment}
-                                disabled={isSavingComment || !editingText.trim()}
+                                disabled={isSavingComment || (!editingText.trim() && !editingHasFiles)}
                                 className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold"
                               >
                                 Save
                               </button>
                             </div>
                           </div>
-                        ) : (
+                        ) : entry.details ? (
                           <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${
                             entry.isSystem
                               ? "text-zinc-500 font-medium"
@@ -755,7 +866,8 @@ export function TaskDetails() {
                           }`}>
                             {entry.isSystem ? entry.details : renderCommentWithMentions(entry.details)}
                           </p>
-                        )}
+                        ) : null}
+                        {"files" in entry && <CommentFiles files={entry.files} />}
                       </div>
                     </div>
                   );
@@ -862,7 +974,10 @@ export function TaskDetails() {
       <ConfirmDialog
         open={!!commentToDelete}
         title="Delete comment?"
-        message="This comment will be removed for everyone."
+        message={(() => {
+          const n = task.comments?.find((c) => c.id === commentToDelete)?.attachments?.length ?? 0;
+          return n ? `This comment and its ${n === 1 ? "file" : `${n} files`} will be removed for everyone.` : "This comment will be removed for everyone.";
+        })()}
         onConfirm={() => commentToDelete && handleDeleteComment(commentToDelete)}
         onCancel={() => setCommentToDelete(null)}
       />

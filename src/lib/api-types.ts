@@ -77,6 +77,8 @@ export interface Comment {
   createdAt: string;
   updatedAt?: string;
   user?: User;
+  // Files posted with this comment (they also show in the task's Files tab)
+  attachments?: Attachment[];
 }
 
 export interface Attachment {
@@ -87,6 +89,8 @@ export interface Attachment {
   fileSize: number;
   projectId?: string;
   taskId?: string;
+  // Set when the file came with a comment
+  commentId?: string | null;
   userId: string;
   createdAt: string;
   user?: User;

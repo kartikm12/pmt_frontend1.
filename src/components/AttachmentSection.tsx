@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { Paperclip, File as FileIcon, X, Download, Trash2, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Paperclip, File as FileIcon, Download, Trash2, FileText, Image as ImageIcon, Loader2, MessageSquare } from "lucide-react";
 import { api, fileUrl, mapAttachment } from "@/lib/api";
 import type { Attachment } from "@/lib/api-types";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { isManager } from "@/utils/roleUtils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { FilePreview, isImage, isPdf } from "@/components/FilePreview";
+import { ACCEPTED_FILES, fileProblem, formatFileSize, namePasted } from "@/lib/files";
 
 interface AttachmentSectionProps {
   projectId?: string;
@@ -27,17 +28,6 @@ const getFileIcon = (fileType: string) => {
   return <FileIcon className="w-5 h-5 text-slate-500" />;
 };
 
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-// Same types the server accepts (utils/multer.ts), so the picker hides files that would be rejected
-const ACCEPTED_FILES = ".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv,.ppt,.pptx,.doc,.docx,.xls,.xlsx";
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 // One shared empty list: a fresh `[]` default each render made the effect below refetch in a loop
 const NO_ATTACHMENTS: Attachment[] = [];
 
@@ -99,13 +89,9 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
     setIsUploading(true);
     let uploaded = 0;
     for (const file of files) {
-      const ext = file.name.includes(".") ? `.${file.name.split(".").pop()!.toLowerCase()}` : "";
-      if (!ACCEPTED_FILES.split(",").includes(ext)) {
-        toast.error(`"${file.name}" isn't a file type PMT accepts`);
-        continue;
-      }
-      if (file.size > MAX_FILE_BYTES) {
-        toast.error(files.length > 1 ? `"${file.name}" is over the 10 MB limit` : "File size exceeds the 10 MB limit");
+      const problem = fileProblem(file, files.length > 1);
+      if (problem) {
+        toast.error(problem);
         continue;
       }
       try {
@@ -131,8 +117,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
       const files = Array.from(e.clipboardData?.files ?? []);
       if (!files.length) return;
       e.preventDefault();
-      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", ".");
-      void uploadFiles(files.map((f) => (/^image\.(png|jpe?g|gif|webp)$/i.test(f.name) ? new File([f], `Pasted ${stamp}.${f.name.split(".").pop()}`, { type: f.type }) : f)));
+      void uploadFiles(namePasted(files));
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
@@ -253,6 +238,11 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
                   {formatFileSize(file.fileSize)} • {safeFormat(file.createdAt, "MMM d, yyyy")}
                   {file.user && ` • by ${file.user.name}`}
                 </p>
+                {file.commentId && (
+                  <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded" data-from-comment>
+                    <MessageSquare className="w-3 h-3" /> from a comment
+                  </span>
+                )}
               </div>
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 <a
@@ -287,7 +277,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
       <ConfirmDialog
         open={!!fileToDelete}
         title="Delete file?"
-        message={fileToDelete ? `"${fileToDelete.name}" will be removed for everyone.` : undefined}
+        message={fileToDelete ? `"${fileToDelete.name}" will be removed for everyone${fileToDelete.commentId ? ", and from the comment it was posted with" : ""}.` : undefined}
         onConfirm={() => fileToDelete && handleDelete(fileToDelete.id)}
         onCancel={() => setFileToDelete(null)}
       />

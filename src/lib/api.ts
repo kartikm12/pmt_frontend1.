@@ -87,6 +87,7 @@ export type RawTask = {
     createdAt: string;
     updatedAt?: string;
     user?: RawUser;
+    attachments?: any[];
   }>;
   labels?: string[];
   estimateHours?: number | null;
@@ -301,7 +302,8 @@ export function mapTask(raw: RawTask): Task {
         text: comment.body,
         createdAt: comment.createdAt,
         updatedAt: comment.updatedAt,
-        user: comment.user ? mapUser(comment.user) : undefined
+        user: comment.user ? mapUser(comment.user) : undefined,
+        attachments: comment.attachments?.map(mapAttachment) ?? []
       })
     ),
     attachments: (raw as any).attachments || [],
@@ -389,7 +391,8 @@ async function send<T>(path: string, options: RequestInit = {}) {
   const token = getStoredToken();
   const headers = new Headers(options.headers);
 
-  if (!headers.has("Content-Type") && options.body) {
+  // A FormData body (files) sets its own multipart type
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -465,6 +468,7 @@ export function mapAttachment(raw: any): Attachment {
     fileSize: raw.fileSize,
     projectId: raw.projectId,
     taskId: raw.taskId,
+    commentId: raw.commentId ?? null,
     userId: raw.userId,
     createdAt: raw.createdAt,
     user: raw.user ? mapUser(raw.user) : undefined
@@ -894,11 +898,15 @@ export const api = {
     return request<LeaderboardEntry[]>(`/leaderboard${query}`);
   },
 
-  async postComment(taskId: string, body: string) {
-    return request<Comment>(`/tasks/${taskId}/comments`, {
-      method: "POST",
-      body: JSON.stringify({ body })
-    });
+  // With files the comment goes as multipart (field "files", up to 5); without, as plain JSON
+  async postComment(taskId: string, body: string, files: File[] = []) {
+    if (!files.length) {
+      return request<Comment>(`/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+    }
+    const form = new FormData();
+    form.append("body", body);
+    for (const file of files) form.append("files", file);
+    return request<Comment>(`/tasks/${taskId}/comments`, { method: "POST", body: form });
   },
 
   async updateComment(commentId: string, body: string) {
