@@ -449,6 +449,7 @@ export function EditProjectModal({ project, users, onClose, onSaved }: {
       const updated = await api.updateProject(editing.id, editing);
       onSaved(updated);
       toast.success("Project updated successfully!");
+      if (updated.tasksAfterEnd) toast.info(`${updated.tasksAfterEnd} open task${updated.tasksAfterEnd === 1 ? " is" : "s are"} due after the project's end date.`);
     } catch (error: any) {
       if (error?.data?.code === "OPEN_TASKS") setOpenTasks(Number(error.data.openTasks) || 1);
       else toast.error(error instanceof Error ? error.message : "Failed to update project");

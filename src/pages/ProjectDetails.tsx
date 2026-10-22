@@ -732,7 +732,10 @@ export function ProjectDetails() {
       <ConfirmDialog
         open={!!taskToDeleteId}
         title="Delete Task?"
-        message="It moves to Recently deleted, where a manager can restore it within 30 days."
+        message={`It moves to Recently deleted, where a manager can restore it within 30 days.${(() => {
+          const freed = tasks.filter((t) => t.blockedBy?.some((b) => b.id === taskToDeleteId)).map((t) => `"${t.title}"`);
+          return freed.length ? ` ${freed.join(", ")} ${freed.length === 1 ? "is" : "are"} waiting on it and will no longer be blocked.` : "";
+        })()}`}
         onConfirm={deleteTask}
         onCancel={() => setTaskToDeleteId(null)}
       />

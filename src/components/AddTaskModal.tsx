@@ -6,6 +6,7 @@ import { MultiSelectDropdown } from '@/components/ui/MultiSelectDropdown';
 import { SingleSelectDropdown } from '@/components/ui/SingleSelectDropdown';
 import { LabelInput } from '@/components/ui/LabelChip';
 import { api } from '@/lib/api';
+import { safeFormat } from '@/utils/dateUtils';
 import type { PlanningState } from '@/lib/planning';
 import { RepeatPicker } from '@/components/RepeatPicker';
 
@@ -72,6 +73,7 @@ export function AddTaskModal({
   const [submitting, setSubmitting] = React.useState(false);
   // Other tasks of the chosen project, for the Blocked by picker
   const [projectTasks, setProjectTasks] = React.useState<Task[]>([]);
+  const [projectDates, setProjectDates] = React.useState({ start: "", end: "" });
   React.useEffect(() => {
     if (!isOpen || statusOnly || !planning || !newTaskProjectId) {
       setProjectTasks([]);
@@ -82,6 +84,7 @@ export function AddTaskModal({
       .then((b) => {
         if (cancelled) return;
         setProjectTasks(b.tasks);
+        setProjectDates({ start: b.project.startDate ? b.project.startDate.slice(0, 10) : "", end: b.project.dueDate ? b.project.dueDate.slice(0, 10) : "" });
         // Moving the task to another project: blockers must belong to that project
         if (planning && setPlanning) {
           const taskIds = new Set(b.tasks.map((t) => t.id));
@@ -313,6 +316,12 @@ export function AddTaskModal({
                       onChange={(e) => setNewTaskDueDate(e.target.value)}
                       className="w-full input px-3 py-2.5 text-sm dark:text-slate-100"
                     />
+                    {newTaskDueDate && projectDates.end && newTaskDueDate > projectDates.end && (
+                      <p data-date-warning className="text-xs font-semibold text-amber-700 dark:text-amber-400">After the project's end date ({safeFormat(projectDates.end, "MMM d")}).</p>
+                    )}
+                    {newTaskDueDate && projectDates.start && newTaskDueDate < projectDates.start && (
+                      <p data-date-warning className="text-xs font-semibold text-amber-700 dark:text-amber-400">Before the project's start date ({safeFormat(projectDates.start, "MMM d")}).</p>
+                    )}
                   </div>
                 )}
                 {newTaskProjectId !== undefined && setNewTaskProjectId && projects && (

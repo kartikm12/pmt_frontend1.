@@ -271,7 +271,7 @@ export function Tasks() {
     const name = users.find((u) => u.id === userId)?.name ?? "person";
     return runBulk(`Assigned ${name}`, (t) => t.myRole === "manager", async (t) => {
       if (t.assigneeIds.includes(userId)) return;
-      const updated = await api.updateTask(t.id, { assigneeIds: [...t.assigneeIds, userId] });
+      const updated = await api.addAssignees(t.id, [userId]);
       setAllTasks((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
     });
   };

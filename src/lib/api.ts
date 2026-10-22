@@ -654,7 +654,12 @@ export const api = {
       })
     });
 
-    return mapProject(response);
+    return Object.assign(mapProject(response), { tasksAfterEnd: Number((response as any).tasksAfterEnd) || 0 });
+  },
+
+  // Adds people to a task without replacing its list (bulk Assign works from a list that may be out of date)
+  async addAssignees(taskId: string, userIds: string[]) {
+    return mapTask(await request<RawTask>(`/tasks/${taskId}`, { method: "PUT", body: JSON.stringify({ addAssigneeIds: userIds }) }));
   },
 
   async deleteProject(projectId: string) {

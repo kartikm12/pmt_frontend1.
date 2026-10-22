@@ -855,7 +855,7 @@ export function TaskDetails() {
       <ConfirmDialog
         open={confirmTaskDelete}
         title="Delete task?"
-        message={`"${task.title}" moves to Recently deleted, where a manager can restore it within 30 days.`}
+        message={`"${task.title}" moves to Recently deleted, where a manager can restore it within 30 days.${task.blocks?.length ? ` ${task.blocks.map((b) => `"${b.title}"`).join(", ")} ${task.blocks.length === 1 ? "is" : "are"} waiting on it and will no longer be blocked.` : ""}`}
         onConfirm={handleDeleteTask}
         onCancel={() => setConfirmTaskDelete(false)}
       />
