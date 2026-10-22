@@ -158,16 +158,17 @@ export function TaskDetails() {
           api.getActivity(`?taskId=${id}`)
         ]);
         setTask(taskData);
-
-        if (taskData.projectId) {
-          const projectBundle = await api.getProjectBundle(taskData.projectId);
-          setUsers(projectBundle.users);
-          const allProjects = await api.getProjects();
-          setProjects(allProjects);
-        }
         if (id) setEntityName(id, taskData.title);
         if (taskData.project?.id) setEntityName(taskData.project.id, taskData.project.name);
         setActivity(activityData);
+        // The task shows now; the people (for @mentions) and the project list follow together in the
+        // background instead of holding the page for two more round trips one after the other
+        setIsLoading(false);
+        if (taskData.projectId) {
+          const [projectBundle, allProjects] = await Promise.all([api.getProjectBundle(taskData.projectId), api.getProjects()]);
+          setUsers(projectBundle.users);
+          setProjects(allProjects);
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to load task");
       } finally {
