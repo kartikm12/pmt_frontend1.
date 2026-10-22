@@ -148,7 +148,7 @@ export function Login() {
             </div>
             {mode === "login" && (
               <div className="text-right">
-                <Link to="/forgot-password" className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Forgot password?</Link>
+                <Link to="/forgot-password" className="inline-block py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">Forgot password?</Link>
               </div>
             )}
           </div>
