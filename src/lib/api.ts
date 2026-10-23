@@ -372,6 +372,12 @@ export function fileUrl(url: string) {
   return /^https?:\/\//.test(url) ? url : `${API_BASE_URL.replace(/\/api$/, "")}${url}`;
 }
 
+// The small version of a picture, for thumbnails (the server makes it once); the preview uses fileUrl
+export function thumbUrl(url: string) {
+  const full = fileUrl(url);
+  return full.includes("/api/attachments/") ? `${full}${full.includes("?") ? "&" : "?"}size=thumb` : full;
+}
+
 // A change already on its way is never sent twice: a repeat click on Save/Delete/Invite while the first
 // request is still running gets that same request's answer instead of firing a duplicate
 const inFlight = new Map<string, Promise<unknown>>();

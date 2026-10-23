@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Paperclip, File as FileIcon, Download, Trash2, FileText, Image as ImageIcon, Loader2, MessageSquare } from "lucide-react";
-import { api, fileUrl, mapAttachment } from "@/lib/api";
+import { api, fileUrl, mapAttachment, thumbUrl } from "@/lib/api";
 import type { Attachment } from "@/lib/api-types";
 import { toast } from "sonner";
 import { safeFormat } from "@/utils/dateUtils";
@@ -212,7 +212,7 @@ export function AttachmentSection({ projectId, taskId, initialAttachments = NO_A
               >
                 {isImage(file) && !brokenThumbs.has(file.id) ? (
                   <img
-                    src={fileUrl(file.url)}
+                    src={thumbUrl(file.url)}
                     alt=""
                     loading="lazy"
                     data-thumb={file.id}

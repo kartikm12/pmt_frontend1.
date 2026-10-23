@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Plus, Calendar, Paperclip, Edit2, Trash2, Lock, Repeat, CheckSquare } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -21,6 +21,7 @@ import { ProjectActivity } from "@/components/project/ProjectActivity";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { RepeatChip } from "@/components/RepeatPicker";
+import { OverdueBadge, projectIsOverdue } from "@/components/ui/OverdueBadge";
 
 const COLUMNS: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 const TABS = [
@@ -413,6 +414,7 @@ export function ProjectDetails() {
             }`}>
               {project.name}
             </h1>
+            {projectIsOverdue(project) && <OverdueBadge className="text-xs px-3 py-1" />}
             <span className={`inline-flex items-center px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border ${
               project.status === "Active"
                 ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
@@ -468,6 +470,8 @@ export function ProjectDetails() {
           onSaved={(updated) => {
             setProject((prev) => (prev ? { ...prev, ...updated, myRole: prev.myRole } : prev));
             setEntityName(updated.id, updated.name); // keep the breadcrumb in step with a rename
+            // ...and the task form, which takes the project's name from this list
+            setAllProjects((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
             setIsEditingProject(false);
             void reloadProject(); // member changes alter roles
           }}
@@ -558,7 +562,7 @@ export function ProjectDetails() {
                                   ? "text-red-600 dark:text-red-400 group-hover:text-red-500"
                                   : "text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                             }`}>
-                              {task.title}
+                              <Link to={`/tasks/${task.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{task.title}</Link>
                             </h4>
                             {canManageWork && (
                               <div className="flex items-center shrink-0 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-all">

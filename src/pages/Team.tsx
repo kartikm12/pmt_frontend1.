@@ -241,9 +241,9 @@ export function Team() {
                         minLength={8}
                         placeholder="At least 8 characters"
                         type={showInvitePassword ? "text" : "password"}
-                        value={invitePassword} 
-                        onChange={(e) => setInvitePassword(e.target.value)} 
-                        className="w-full pl-11 pr-12 py-3 input text-sm focus:outline-none transition-all dark:text-slate-100 font-medium" 
+                        value={invitePassword}
+                        onChange={(e) => setInvitePassword(e.target.value)}
+                        className="w-full pl-11 pr-12 py-3 input text-sm focus:outline-none transition-all dark:text-slate-100 font-medium"
                       />
                       <button
                         type="button"
@@ -565,10 +565,14 @@ export function Team() {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  // When the field is one text box, tie the label to it (screen readers name it; tapping the label focuses it)
+  const autoId = React.useId();
+  const box = React.isValidElement<{ id?: string }>(children) && (children.type === "input" || children.type === "textarea") ? children : null;
+  const id = box ? box.props.id ?? autoId : undefined;
   return (
     <div className="space-y-2">
-      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{label}</label>
-      {children}
+      <label htmlFor={id} className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{label}</label>
+      {box ? React.cloneElement(box, { id }) : children}
     </div>
   );
 }

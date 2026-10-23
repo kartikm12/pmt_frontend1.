@@ -15,6 +15,7 @@ import { isManager } from "@/utils/roleUtils";
 import { Avatar } from "@/components/ui/Avatar";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OverdueBadge, projectIsOverdue } from "@/components/ui/OverdueBadge";
 
 export function Projects() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -69,9 +70,9 @@ export function Projects() {
     }
 
     setAllProjects((prev) =>
-      prev.map((p) => 
-        p.id === updatedProject.id 
-          ? { ...p, ...updatedProject } 
+      prev.map((p) =>
+        p.id === updatedProject.id
+          ? { ...p, ...updatedProject }
           : p
       )
     );
@@ -102,11 +103,11 @@ export function Projects() {
       const matchesSearch =
         project.name.toLowerCase().includes(activeSearchQuery.toLowerCase()) ||
         project.description.toLowerCase().includes(activeSearchQuery.toLowerCase());
-      
-      const matchesStatus = 
-        statusFilter === "All" || 
+
+      const matchesStatus =
+        statusFilter === "All" ||
         (statusFilter === "Pending" ? (project.status === "Planning" || project.status === "On Hold") : project.status === statusFilter);
-        
+
       return matchesSearch && matchesStatus;
     });
   }, [activeSearchQuery, statusFilter, allProjects]);
@@ -333,6 +334,7 @@ export function Projects() {
                       <div className="flex items-center gap-2 mt-1">
                         <Clock className="w-3.5 h-3.5 text-slate-400" />
                         <p className="text-xs text-slate-500 dark:text-slate-400">Due {safeFormat(project.dueDate, "MMM d, yyyy")}</p>
+                        {projectIsOverdue(project) && <OverdueBadge />}
                       </div>
                     </div>
                   </div>
@@ -540,18 +542,18 @@ function ProjectModal(props: {
       <div className="card w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
         <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">{props.title}</h2>
-          <button onClick={props.onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={props.onClose} aria-label="Close" className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
         <form onSubmit={props.onSubmit} noValidate className="p-8 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Name</label>
-            <input required value={props.name} onChange={(e) => props.setName(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" />
+            <label htmlFor="project-name" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Name</label>
+            <input id="project-name" required value={props.name} onChange={(e) => props.setName(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Description</label>
-            <textarea required value={props.description} onChange={(e) => props.setDescription(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none h-28 dark:text-slate-100" />
+            <label htmlFor="project-description" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Description</label>
+            <textarea id="project-description" required value={props.description} onChange={(e) => props.setDescription(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none h-28 dark:text-slate-100" />
           </div>
           {props.setStatus && props.status && (
             <div className="space-y-2">
@@ -574,10 +576,11 @@ function ProjectModal(props: {
               <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Project Team</label>
               <>
                 <MultiSelectDropdown
+                  ariaLabel="Project team"
                   // Suspended people can't be newly added; ones already on the team stay listed
                   options={props.users.filter((u) => u.status !== "Suspended" || props.memberIds?.includes(u.id))}
-                  selectedIds={props.memberIds} 
-                  onChange={(ids) => props.setMemberIds?.(ids)} 
+                  selectedIds={props.memberIds}
+                  onChange={(ids) => props.setMemberIds?.(ids)}
                   placeholder="Search and select project members..."
                 />
                 <p className="text-xs text-slate-500 dark:text-slate-400">At least one project team member is required.</p>
@@ -597,19 +600,20 @@ function ProjectModal(props: {
           )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Start Date</label>
-              <input required type="date" value={props.startDate} onChange={(e) => props.setStartDate(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" />
+              <label htmlFor="project-start" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Start Date</label>
+              <input id="project-start" required type="date" value={props.startDate} onChange={(e) => props.setStartDate(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">End Date</label>
-              <input 
-                required 
-                type="date" 
+              <label htmlFor="project-end" className="text-sm font-semibold text-slate-700 dark:text-slate-300">End Date</label>
+              <input
+                id="project-end"
+                required
+                type="date"
                 value={props.endDate}
                 // On edit a past deadline must stay saveable; the browser would otherwise refuse to submit
                 min={props.isEdit ? props.startDate || undefined : new Date().toLocaleDateString('en-CA')}
-                onChange={(e) => props.setEndDate(e.target.value)} 
-                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100" 
+                onChange={(e) => props.setEndDate(e.target.value)}
+                className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all dark:text-slate-100"
               />
             </div>
           </div>

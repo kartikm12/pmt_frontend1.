@@ -80,7 +80,11 @@ export function Leaderboard() {
   }, [projectId]);
 
   const me = data.find((d) => d.userId === currentUser?.id);
-  const ahead = me && me.rank > 1 ? data[me.rank - 2] : undefined;
+  // Equal scores share a rank (the server gives 1, 1, 3); "behind" means the nearest higher score
+  const ahead = me ? [...data].reverse().find((d) => d.score > me.score) : undefined;
+  const place = (u: LeaderboardEntry) => `${data.filter((d) => d.rank === u.rank).length > 1 ? "Joint " : ""}${ordinal(u.rank)}`;
+  // Nobody has points yet: ranking people at 0 would only say who sorts first by name
+  const noScores = data.length > 0 && data.every((d) => d.score === 0);
   const top3 = data.slice(0, 3);
   // Podium order on wide screens: 2nd, 1st, 3rd
   const podium = useMemo(() => [top3[1], top3[0], top3[2]].filter(Boolean) as LeaderboardEntry[], [data]);
@@ -163,6 +167,12 @@ export function Leaderboard() {
         </div>
       ) : (
         <>
+          {noScores ? (
+            <div role="status" data-no-scores className="flex items-center gap-3 px-5 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 text-sm font-semibold">
+              <Target className="w-4 h-4 shrink-0" />
+              No points yet in this period. Finishing a task earns 10 points, more if it's on time.
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end" aria-label="Top three">
             {podium.map((u) => {
               const first = u.rank === 1;
@@ -178,7 +188,7 @@ export function Leaderboard() {
                 >
                   <p className={cn("text-xs font-bold flex items-center justify-center gap-1", first ? "text-amber-600" : "text-slate-500")}>
                     {first && <Crown className="w-4 h-4" />}
-                    {u.rank === 1 ? "1st" : u.rank === 2 ? "2nd" : "3rd"}
+                    {place(u)}
                   </p>
                   <Avatar name={u.fullName} src={u.avatarUrl} className={cn("mx-auto my-3 rounded-full object-cover", first ? "w-20 h-20 ring-4 ring-amber-200 dark:ring-amber-900/50" : "w-16 h-16")} />
                   <p className="font-bold text-slate-900 dark:text-white truncate">{u.fullName}</p>
@@ -201,13 +211,12 @@ export function Leaderboard() {
               );
             })}
           </div>
+          )}
 
-          {me && (
+          {me && !noScores && (
             <div role="status" data-my-rank className="flex items-center gap-3 px-5 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300 text-sm font-semibold">
               <Trophy className="w-4 h-4 shrink-0" />
-              {me.rank === 1
-                ? `You're 1st of ${data.length} with ${me.score} points.`
-                : `You're ${ordinal(me.rank)} of ${data.length} with ${me.score} points${ahead ? `, ${ahead.score - me.score} behind ${ahead.fullName}` : ""}.`}
+              {`You're ${place(me).toLowerCase()} of ${data.length} with ${me.score} points${ahead ? `, ${ahead.score - me.score} behind ${ahead.fullName}` : ""}.`}
             </div>
           )}
 

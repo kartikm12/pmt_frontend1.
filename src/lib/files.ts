@@ -14,7 +14,10 @@ export function fileProblem(file: File, several = false): string | null {
 
 // Screenshots arrive from the clipboard as "image.png"; give them a dated name so several stay apart
 export function namePasted(files: File[]): File[] {
-  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ").replace(":", ".");
+  // The person's own clock (toISOString would give UTC: 06.52 for a 12.22 paste in India)
+  const now = new Date();
+  const two = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())} ${two(now.getHours())}.${two(now.getMinutes())}`;
   return files.map((f, i) =>
     /^image\.(png|jpe?g|gif|webp)$/i.test(f.name)
       ? new File([f], `Pasted ${stamp}${files.length > 1 ? ` (${i + 1})` : ""}.${f.name.split(".").pop()}`, { type: f.type })

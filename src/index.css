@@ -47,22 +47,14 @@
   }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* No visible scroll bars anywhere in the app. Scrolling itself is unchanged: wheel, trackpad, touch, keyboard
+   and Shift+wheel for sideways areas (the board) all still work. */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge */
 }
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400 dark:bg-slate-600;
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Edge, Safari */
 }
 
 /* Touch screens: text boxes at 16px so tapping one doesn't zoom the page in (iOS does this below 16px) */

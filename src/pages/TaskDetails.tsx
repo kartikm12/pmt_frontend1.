@@ -234,7 +234,8 @@ export function TaskDetails() {
       };
 
       const handleCommentAdded = (data: any) => {
-        if (data.taskId === id) {
+        // The person who posted already got "Comment posted" and a refreshed page
+        if (data.taskId === id && data.comment?.user?.id !== currentUser?.id) {
           api.getTask(id).then(setTask);
           api.getActivity(`?taskId=${id}`).then(setActivity);
           toast.success("New comment added");
@@ -731,7 +732,7 @@ export function TaskDetails() {
                       type="button"
                       onClick={() => commentFileInput.current?.click()}
                       disabled={isSubmitting || commentFiles.length >= MAX_COMMENT_FILES}
-                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Paperclip className="w-3.5 h-3.5" /> Attach
                     </button>
@@ -793,11 +794,12 @@ export function TaskDetails() {
                           ? "bg-slate-50/50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-800/50" 
                           : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm"
                       }`}>
-                        <div className="flex items-center justify-between mb-2">
+                        {/* Wraps on a narrow phone instead of squeezing the Edit/Delete buttons */}
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
                           <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors">
                             {actor?.name ?? "System"}
                           </span>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 ml-auto">
                             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-zinc-50 dark:bg-zinc-900/50 px-2 py-0.5 rounded-full border border-zinc-100 dark:border-zinc-800">
                               {safeFormat(entry.createdAt, "MMM d, h:mm a")}
                             </span>
@@ -811,7 +813,7 @@ export function TaskDetails() {
                                   setEditingCommentId(entry.id);
                                   setEditingText(entry.details);
                                 }}
-                                className="p-1 text-zinc-400 hover:text-indigo-600 rounded transition-colors"
+                                className="w-7 h-7 shrink-0 flex items-center justify-center text-zinc-400 hover:text-indigo-600 rounded transition-colors"
                                 title="Edit comment"
                                 aria-label="Edit comment"
                               >
@@ -822,7 +824,7 @@ export function TaskDetails() {
                               <button
                                 type="button"
                                 onClick={() => setCommentToDelete(entry.id)}
-                                className="p-1 text-zinc-400 hover:text-red-600 rounded transition-colors"
+                                className="w-7 h-7 shrink-0 flex items-center justify-center text-zinc-400 hover:text-red-600 rounded transition-colors"
                                 title="Delete comment"
                                 aria-label="Delete comment"
                               >

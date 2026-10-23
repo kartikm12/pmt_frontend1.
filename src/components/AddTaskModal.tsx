@@ -117,7 +117,7 @@ export function AddTaskModal({
     if (newTaskProjectId && newTaskAssigneeIds && setNewTaskAssigneeIds && projects && users) {
       const parentProject = projects.find(p => p.id === newTaskProjectId);
       if (parentProject) {
-        const validAssigneeIds = newTaskAssigneeIds.filter(id => 
+        const validAssigneeIds = newTaskAssigneeIds.filter(id =>
           parentProject.teamMemberIds?.includes(id)
         );
         if (validAssigneeIds.length !== newTaskAssigneeIds.length) {
@@ -284,6 +284,7 @@ export function AddTaskModal({
                   <div className="space-y-1">
                     <label className={label}>Assign To</label>
                     <MultiSelectDropdown
+                      ariaLabel="Assign to"
                       options={availableUsers}
                       selectedIds={newTaskAssigneeIds}
                       onChange={setNewTaskAssigneeIds}
@@ -374,6 +375,7 @@ export function AddTaskModal({
                       <div className="space-y-1">
                         <label className={label}>Blocked by</label>
                         <MultiSelectDropdown
+                          ariaLabel="Blocked by"
                           options={projectTasks.filter((t) => t.id !== taskToEdit?.id).map((t) => ({ id: t.id, name: t.title }))}
                           selectedIds={planning.blockedByIds}
                           onChange={(ids) => setPlanning({ ...planning, blockedByIds: ids })}

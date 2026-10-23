@@ -17,6 +17,7 @@ import { safeFormat, isOverdue } from "@/utils/dateUtils";
 import { useSocket } from "@/context/SocketContext";
 import { Avatar } from "@/components/ui/Avatar";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { OverdueBadge, projectIsOverdue } from "@/components/ui/OverdueBadge";
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -141,8 +142,8 @@ export function Dashboard() {
             title="Overdue Tasks"
             value={stats?.overdueTasks.toString() ?? "0"}
             icon={AlertCircle}
-            trend="Needs attention"
-            alert
+            trend={stats?.overdueTasks ? "Needs attention" : "Nothing is late"}
+            alert={!!stats?.overdueTasks}
             onIconClick={() => navigate("/tasks?status=Overdue")}
           />
           <StatCard 
@@ -181,6 +182,7 @@ export function Dashboard() {
                       }`}>
                         {project.name}
                       </div>
+                      {projectIsOverdue(project) && <OverdueBadge className="mt-1" />}
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="flex -space-x-2">
@@ -235,7 +237,7 @@ export function Dashboard() {
                               ? "text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300"
                               : "text-zinc-900 dark:text-zinc-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                         }`}>
-                          {task.title}
+                          <Link to={`/tasks/${task.id}`} onClick={(e) => e.stopPropagation()}>{task.title}</Link>
                         </div>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Due {safeFormat(task.dueDate, "MMM d, yyyy")}</p>
                       </div>

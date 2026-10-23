@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { Task } from "@/lib/api-types";
 import { safeFormat } from "@/utils/dateUtils";
 
@@ -56,9 +56,9 @@ export function ProjectTimeline({ tasks }: { tasks: Task[] }) {
         <div className="grid grid-cols-[200px_1fr] gap-4 mt-2">
           <div>
             {rows.map(({ task }) => (
-              <button key={task.id} onClick={() => navigate(`/tasks/${task.id}`)} className="block w-full text-left text-sm truncate text-slate-700 dark:text-slate-300 hover:text-indigo-600" style={{ height: ROW, lineHeight: `${ROW}px` }}>
+              <Link key={task.id} to={`/tasks/${task.id}`} className="block w-full text-left text-sm truncate text-slate-700 dark:text-slate-300 hover:text-indigo-600" style={{ height: ROW, lineHeight: `${ROW}px` }}>
                 {task.title}
-              </button>
+              </Link>
             ))}
           </div>
           <div className="relative" style={{ height }}>

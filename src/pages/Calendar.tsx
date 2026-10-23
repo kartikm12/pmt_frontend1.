@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, FolderKanban, User as UserIcon } from "lucide-react";
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isSameMonth, startOfMonth, startOfWeek } from "date-fns";
 import { toast } from "sonner";
@@ -158,11 +158,11 @@ export function Calendar() {
                   </p>
                   <div className="space-y-1.5">
                     {(byDay.get(key) ?? []).map((t) => (
-                      <button key={t.id} onClick={() => navigate(`/tasks/${t.id}`)} data-task={t.title} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-left">
+                      <Link key={t.id} to={`/tasks/${t.id}`} data-task={t.title} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-left">
                         <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[t.status] ?? "bg-slate-400"}`} aria-hidden="true" />
                         <span className={`flex-1 min-w-0 truncate text-sm font-semibold ${t.status === "Completed" ? "line-through text-slate-400" : "text-slate-800 dark:text-slate-100"}`}>{t.title}</span>
                         <span className="text-xs text-slate-400 shrink-0">{t.status}</span>
-                      </button>
+                      </Link>
                     ))}
                   </div>
                 </li>

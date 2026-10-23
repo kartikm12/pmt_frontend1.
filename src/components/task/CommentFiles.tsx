@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { File as FileIcon, FileText } from "lucide-react";
 import type { Attachment } from "@/lib/api-types";
-import { fileUrl } from "@/lib/api";
+import { thumbUrl } from "@/lib/api";
 import { formatFileSize } from "@/lib/files";
 import { FilePreview, isImage, isPdf } from "@/components/FilePreview";
 
@@ -25,7 +25,7 @@ export function CommentFiles({ files }: { files: Attachment[] }) {
             className="w-20 h-20 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           >
             <img
-              src={fileUrl(file.url)}
+              src={thumbUrl(file.url)}
               alt=""
               loading="lazy"
               data-thumb={file.id}

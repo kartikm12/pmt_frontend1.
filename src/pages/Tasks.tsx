@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Clock, MoreHorizontal, Filter, ArrowUpDown, Search, ClipboardList, Plus, X, Download, FolderKanban, User as UserIcon, Tag, CheckSquare } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { AddTaskModal } from "@/components/AddTaskModal";
@@ -502,7 +502,7 @@ export function Tasks() {
                     aria-label={`Select ${task.title}`}
                     className="w-5 h-5 mt-0.5 accent-indigo-600 shrink-0"
                   />
-                  <button onClick={() => navigate(`/tasks/${task.id}`)} className="flex-1 min-w-0 text-left">
+                  <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0 text-left">
                     <span className={`block font-semibold break-words ${task.status === "Completed" ? "text-emerald-600 dark:text-emerald-400" : late ? "text-red-600 dark:text-red-400" : "text-zinc-900 dark:text-zinc-100"}`}>{task.title}</span>
                     <span className="block text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                       {task.project?.name || projects.find((p) => p.id === task.projectId)?.name} · {task.status} · {task.priority}
@@ -517,7 +517,7 @@ export function Tasks() {
                         {!!task.subtaskTotal && <span className="text-[10px] font-bold text-slate-500">☑ {task.subtaskDone}/{task.subtaskTotal}</span>}
                       </span>
                     )}
-                  </button>
+                  </Link>
                 </li>
               );
             })}
@@ -568,7 +568,7 @@ export function Tasks() {
                                 ? "text-red-600 dark:text-red-400"
                                 : "text-zinc-900 dark:text-zinc-100"
                           }`}>
-                            {task.title}
+                            <Link to={`/tasks/${task.id}`} onClick={(e) => e.stopPropagation()}>{task.title}</Link>
                           </div>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-1">{task.description}</span>
                           {(task.labels.length > 0 || !!task.subtaskTotal || !!task.recurrence) && (

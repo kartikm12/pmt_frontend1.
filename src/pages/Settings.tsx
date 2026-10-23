@@ -355,10 +355,14 @@ export function Settings() {
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  // When the field is one text box, tie the label to it (screen readers name it; tapping the label focuses it)
+  const autoId = React.useId();
+  const box = React.isValidElement<{ id?: string }>(children) && (children.type === "input" || children.type === "textarea") ? children : null;
+  const id = box ? box.props.id ?? autoId : undefined;
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</label>
-      {children}
+      <label htmlFor={id} className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</label>
+      {box ? React.cloneElement(box, { id }) : children}
     </div>
   );
 }
@@ -384,7 +388,7 @@ function PasswordField({ label, value, onChange, autoComplete }: { label: string
   return (
     <Field label={label}>
       <div className="relative">
-        <input type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)} className="input pr-12" autoComplete={autoComplete} />
+        <input type={show ? "text" : "password"} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} className="input pr-12" autoComplete={autoComplete} />
         <button
           type="button"
           onClick={() => setShow(!show)}
