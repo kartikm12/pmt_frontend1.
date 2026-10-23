@@ -6,12 +6,32 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { SearchPalette } from "./SearchPalette";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { preloadPages } from "@/pages/lazyPages";
+import { api } from "@/lib/api";
 
 export function MainLayout({ onLogout }: { onLogout: () => void }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   useEffect(preloadPages, []);
+
+  // Pointing at (or tabbing to) a task link starts loading that task, so it usually opens without a wait
+  useEffect(() => {
+    let timer: number | undefined;
+    const onPoint = (e: Event) => {
+      const link = (e.target as Element | null)?.closest?.("a[href^='/tasks/']");
+      const id = link?.getAttribute("href")?.split("/")[2];
+      window.clearTimeout(timer);
+      // A short pause first, so sweeping the mouse across a list doesn't fetch every task on the way
+      if (id) timer = window.setTimeout(() => api.prefetchTask(id), 80);
+    };
+    document.addEventListener("pointerover", onPoint);
+    document.addEventListener("focusin", onPoint);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointerover", onPoint);
+      document.removeEventListener("focusin", onPoint);
+    };
+  }, []);
 
   // Ctrl+K (Cmd+K on Mac) opens search from anywhere
   useEffect(() => {

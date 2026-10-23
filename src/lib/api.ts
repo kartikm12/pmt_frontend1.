@@ -382,6 +382,32 @@ export function thumbUrl(url: string) {
 // request is still running gets that same request's answer instead of firing a duplicate
 const inFlight = new Map<string, Promise<unknown>>();
 
+// Lists most pages share (projects, team, tasks, dashboard numbers) are kept for a short while, so moving
+// between pages shows them at once instead of waiting for the server again. The copy is thrown away the moment
+// anything changes: any change you make (every non-GET request, sign-in and sign-out included) and any live
+// event from the server (someone else changed something), so it is never older than the last change you heard of.
+const KEEP_MS = 30_000;
+const kept = new Map<string, { at: number; value: Promise<unknown> }>();
+export function forgetKept() {
+  kept.clear();
+}
+function keep<T>(key: string, load: () => Promise<T>, ms = KEEP_MS): Promise<T> {
+  const hit = kept.get(key);
+  if (hit && Date.now() - hit.at < ms) return hit.value.then((v) => structuredClone(v)) as Promise<T>;
+  const value = load();
+  kept.set(key, { at: Date.now(), value });
+  value.catch(() => kept.delete(key));
+  return value.then((v) => structuredClone(v));
+}
+// A task fetched ahead of a click (pointer over its link) is used once by the task page, then dropped
+const ahead = new Map<string, { at: number; value: Promise<unknown> }>();
+function takeAhead<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = ahead.get(key);
+  ahead.delete(key);
+  if (hit && Date.now() - hit.at < 15_000) return hit.value as Promise<T>;
+  return load();
+}
+
 function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
   if (method === "GET" || (options.body !== undefined && typeof options.body !== "string")) return send<T>(path, options);
@@ -394,6 +420,17 @@ function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 async function send<T>(path: string, options: RequestInit = {}) {
+  const changes = (options.method ?? "GET").toUpperCase() !== "GET";
+  if (changes) { forgetKept(); ahead.clear(); }
+  try {
+    return await sendNow<T>(path, options);
+  } finally {
+    // ...and again once it's done, so nothing read while it was on its way survives it
+    if (changes) { forgetKept(); ahead.clear(); }
+  }
+}
+
+async function sendNow<T>(path: string, options: RequestInit = {}) {
   const token = getStoredToken();
   const headers = new Headers(options.headers);
 
@@ -561,8 +598,7 @@ export const api = {
   },
 
   async getProjects() {
-    const response = await request<RawProject[]>("/projects");
-    return response.map(mapProject);
+    return keep("/projects", async () => (await request<RawProject[]>("/projects")).map(mapProject));
   },
 
   async getProject(projectId: string) {
@@ -589,7 +625,7 @@ export const api = {
   },
 
   async getDashboardStats() {
-    return request<{
+    return keep("/stats/dashboard", () => request<{
       stats: {
         activeProjects: number;
         totalProjects: number;
@@ -602,7 +638,7 @@ export const api = {
       };
       recentTasks: RawTask[];
       upcomingDeadlines: RawTask[];
-    }>("/stats/dashboard");
+    }>("/stats/dashboard"));
   },
 
   async getNotifications() {
@@ -687,13 +723,33 @@ export const api = {
 
   async getTasks(projectId?: string) {
     const suffix = projectId ? `?projectId=${projectId}` : "";
-    const response = await request<RawTask[]>(`/tasks${suffix}`);
-    return response.map(mapTask);
+    return keep(`/tasks${suffix}`, async () => (await request<RawTask[]>(`/tasks${suffix}`)).map(mapTask));
   },
 
   async getTask(taskId: string) {
     const response = await request<RawTask>(`/tasks/${taskId}`);
     return mapTask(response);
+  },
+
+  // Start loading a task (and its activity) when the pointer reaches its link, so the page is usually ready
+  // by the time of the click. Harmless if the click never comes.
+  prefetchTask(taskId: string) {
+    if (ahead.has(`task:${taskId}`)) return;
+    const at = Date.now();
+    const task = api.getTask(taskId);
+    const activity = api.getActivity(`?taskId=${taskId}`);
+    task.catch(() => ahead.delete(`task:${taskId}`));
+    activity.catch(() => ahead.delete(`activity:${taskId}`));
+    ahead.set(`task:${taskId}`, { at, value: task });
+    ahead.set(`activity:${taskId}`, { at, value: activity });
+  },
+
+  // The task page's first load: the copy fetched ahead if there is a fresh one, otherwise a normal request
+  openTask(taskId: string) {
+    return Promise.all([
+      takeAhead(`task:${taskId}`, () => api.getTask(taskId)) as Promise<Task>,
+      takeAhead(`activity:${taskId}`, () => api.getActivity(`?taskId=${taskId}`)) as Promise<Activity[]>
+    ]);
   },
 
   async createTask(payload: {
@@ -827,11 +883,10 @@ export const api = {
   },
 
   async getTeam(): Promise<User[]> {
-    const response = await request<Array<RawUser & { memberships?: Array<{ project: RawProject }> }>>("/team");
-    return response.map((member) => ({
+    return keep("/team", async () => (await request<Array<RawUser & { memberships?: Array<{ project: RawProject }> }>>("/team")).map((member) => ({
       ...mapUser(member),
       projects: member.memberships?.map((membership) => mapProject(membership.project)) ?? []
-    }));
+    })));
   },
 
   async inviteTeamMember(payload: {

@@ -153,10 +153,8 @@ export function TaskDetails() {
       setTask(null);
 
       try {
-        const [taskData, activityData] = await Promise.all([
-          api.getTask(id),
-          api.getActivity(`?taskId=${id}`)
-        ]);
+        // Uses the copy loaded when the pointer reached the link, if there is a fresh one
+        const [taskData, activityData] = await api.openTask(id);
         setTask(taskData);
         if (id) setEntityName(id, taskData.title);
         if (taskData.project?.id) setEntityName(taskData.project.id, taskData.project.name);
@@ -293,12 +291,15 @@ export function TaskDetails() {
   const saveStatus = async (status: TaskStatus) => {
     if (!id || !task || statusBusy || status === task.status) return;
     setStatusBusy(true);
+    const before = task;
+    setTask({ ...task, status });
     try {
       const updated = await api.updateTask(id, { status });
       setTask(updated);
       void api.getActivity(`?taskId=${id}`).then(setActivity).catch(() => undefined);
       toast.success(`Moved to ${status}`);
     } catch (error) {
+      setTask(before);
       toast.error(error instanceof Error ? error.message : "Couldn't change the status");
     } finally {
       setStatusBusy(false);
