@@ -390,6 +390,7 @@ const KEEP_MS = 30_000;
 const kept = new Map<string, { at: number; value: Promise<unknown> }>();
 export function forgetKept() {
   kept.clear();
+  ahead.clear();
 }
 function keep<T>(key: string, load: () => Promise<T>, ms = KEEP_MS): Promise<T> {
   const hit = kept.get(key);
@@ -399,12 +400,14 @@ function keep<T>(key: string, load: () => Promise<T>, ms = KEEP_MS): Promise<T> 
   value.catch(() => kept.delete(key));
   return value.then((v) => structuredClone(v));
 }
-// A task fetched ahead of a click (pointer over its link) is used once by the task page, then dropped
+// A task fetched ahead of a click (pointer over its link) is used by the task page's first load. It stays
+// usable for 15 s (a page that starts twice, as React does in development, gets the same copy), and like the
+// kept lists it is dropped the moment anything changes.
 const ahead = new Map<string, { at: number; value: Promise<unknown> }>();
 function takeAhead<T>(key: string, load: () => Promise<T>): Promise<T> {
   const hit = ahead.get(key);
-  ahead.delete(key);
   if (hit && Date.now() - hit.at < 15_000) return hit.value as Promise<T>;
+  ahead.delete(key);
   return load();
 }
 

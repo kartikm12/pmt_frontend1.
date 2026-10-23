@@ -48,8 +48,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
       newSocket.onAny(() => forgetKept());
 
+      // Only a REconnect drops the kept lists (live events may have been missed while cut off). The first
+      // connect lands a few seconds after the first page loaded its lists; nothing was missed then.
+      let connectedBefore = false;
       newSocket.on("connect", () => {
-        forgetKept();
+        if (connectedBefore) forgetKept();
+        connectedBefore = true;
         console.log("Connected to WebSocket");
         setIsConnected(true);
         activeProjectsRef.current.forEach((projectId) => {
