@@ -170,7 +170,9 @@ export function Leaderboard() {
           {noScores ? (
             <div role="status" data-no-scores className="flex items-center gap-3 px-5 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 text-sm font-semibold">
               <Target className="w-4 h-4 shrink-0" />
-              No points yet in this period. Finishing a task earns 10 points, more if it's on time.
+              {data.some((d) => d.completedTasks > 0)
+                ? "Everyone is at 0 points: late tasks and projects have taken away what finished work earned. See How the score works."
+                : "No points yet in this period. Finishing a task earns 10 points, more if it's on time."}
             </div>
           ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end" aria-label="Top three">
