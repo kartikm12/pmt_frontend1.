@@ -821,7 +821,7 @@ export function TaskDetails() {
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            {!entry.isSystem && (entry.userId === currentUser?.id || canManage) && (
+                            {!entry.isSystem && (entry.userId === currentUser?.id || currentUser?.role === "Admin") && (
                               <button
                                 type="button"
                                 onClick={() => setCommentToDelete(entry.id)}

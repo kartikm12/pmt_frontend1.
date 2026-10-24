@@ -587,17 +587,6 @@ function ProjectModal(props: {
               </>
             </div>
           )}
-          {props.setCopyFromId && props.copyOptions && props.copyOptions.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Copy tasks from (optional)</label>
-              <SingleSelectDropdown ariaLabel="Copy tasks from"
-                options={[{ id: "", name: "Start empty" }, ...props.copyOptions.map((p) => ({ id: p.id, name: p.name }))]}
-                selectedId={props.copyFromId ?? ""}
-                onChange={(id) => props.setCopyFromId?.(id)}
-              />
-              <p className="text-xs text-slate-500 dark:text-slate-400">Tasks and checklists are copied as new, with dates moved to this project's start. Copies are assigned to you.</p>
-            </div>
-          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="project-start" className="text-sm font-semibold text-slate-700 dark:text-slate-300">Start Date</label>

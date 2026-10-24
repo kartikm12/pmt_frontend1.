@@ -71,19 +71,13 @@ export function AddTaskModal({
   setPlanning
 }: AddTaskModalProps) {
   const [submitting, setSubmitting] = React.useState(false);
-  // Other tasks of the chosen project, for the Blocked by picker
-  const [projectTasks, setProjectTasks] = React.useState<Task[]>([]);
   const [projectDates, setProjectDates] = React.useState({ start: "", end: "" });
   React.useEffect(() => {
-    if (!isOpen || statusOnly || !planning || !newTaskProjectId) {
-      setProjectTasks([]);
-      return;
-    }
+    if (!isOpen || statusOnly || !planning || !newTaskProjectId) return;
     let cancelled = false;
     api.getProjectBundle(newTaskProjectId)
       .then((b) => {
         if (cancelled) return;
-        setProjectTasks(b.tasks);
         setProjectDates({ start: b.project.startDate ? b.project.startDate.slice(0, 10) : "", end: b.project.dueDate ? b.project.dueDate.slice(0, 10) : "" });
         // Moving the task to another project: blockers must belong to that project
         if (planning && setPlanning) {
@@ -154,9 +148,7 @@ export function AddTaskModal({
   const planningSummary = planning
     ? [
         planning.labels.length ? `${planning.labels.length} label${planning.labels.length === 1 ? "" : "s"}` : "",
-        planning.estimateHours ? `${planning.estimateHours}h` : "",
-        planning.recurrence ? "repeats" : "",
-        planning.blockedByIds.length ? `${planning.blockedByIds.length} blocker${planning.blockedByIds.length === 1 ? "" : "s"}` : ""
+        planning.recurrence ? "repeats" : ""
       ].filter(Boolean).join(" · ")
     : "";
   const label = "text-xs font-semibold text-slate-500 dark:text-slate-400";
@@ -280,6 +272,18 @@ export function AddTaskModal({
                     ))}
                   </div>
                 </div>
+                {/* Project before Assign To: who can be assigned depends on the project */}
+                {newTaskProjectId !== undefined && setNewTaskProjectId && projects && (
+                  <div className="space-y-1">
+                    <label htmlFor="task-project" className={label}>Project</label>
+                    <SingleSelectDropdown ariaLabel="Project"
+                      options={projects.map(p => ({ id: p.id, name: p.name }))}
+                      selectedId={newTaskProjectId || ""}
+                      onChange={setNewTaskProjectId}
+                      placeholder="Pick a project..."
+                    />
+                  </div>
+                )}
                 {newTaskAssigneeIds !== undefined && setNewTaskAssigneeIds && users && (
                   <div className="space-y-1">
                     <label className={label}>Assign To</label>
@@ -291,6 +295,7 @@ export function AddTaskModal({
                       placeholder="Pick people..."
                       disabled={!!projects && !newTaskProjectId}
                     />
+                    {!!projects && !newTaskProjectId && <p data-pick-project-first className="text-xs text-slate-500 dark:text-slate-400">Pick a project first.</p>}
                   </div>
                 )}
                 {planning && setPlanning && (
@@ -325,17 +330,6 @@ export function AddTaskModal({
                     )}
                   </div>
                 )}
-                {newTaskProjectId !== undefined && setNewTaskProjectId && projects && (
-                  <div className="space-y-1">
-                    <label htmlFor="task-project" className={label}>Project</label>
-                    <SingleSelectDropdown ariaLabel="Project"
-                      options={projects.map(p => ({ id: p.id, name: p.name }))}
-                      selectedId={newTaskProjectId || ""}
-                      onChange={setNewTaskProjectId}
-                      placeholder="Pick a project..."
-                    />
-                  </div>
-                )}
               </div>
               {planning && setPlanning && (
               <div className="px-5 pb-5 pt-5 md:pt-0 md:border-r border-slate-100 dark:border-slate-800 md:col-start-1 md:row-start-2">
@@ -352,36 +346,9 @@ export function AddTaskModal({
                         <label className={label}>Labels</label>
                         <LabelInput labels={planning.labels} onChange={(labels) => setPlanning({ ...planning, labels })} />
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label htmlFor="task-estimate" className={label}>Estimate (hours)</label>
-                          <input
-                            id="task-estimate"
-                            type="number"
-                            min={0}
-                            max={1000}
-                            step={0.5}
-                            value={planning.estimateHours}
-                            onChange={(e) => setPlanning({ ...planning, estimateHours: e.target.value })}
-                            placeholder="4"
-                            className="w-full input px-3 py-2.5 text-sm dark:text-slate-100"
-                          />
-                        </div>
-                      </div>
                       <div className="space-y-1">
                         <label className={label}>Repeat</label>
                         <RepeatPicker value={planning.recurrence} due={newTaskDueDate ?? ""} onChange={(rule) => setPlanning({ ...planning, recurrence: rule })} />
-                      </div>
-                      <div className="space-y-1">
-                        <label className={label}>Blocked by</label>
-                        <MultiSelectDropdown
-                          ariaLabel="Blocked by"
-                          options={projectTasks.filter((t) => t.id !== taskToEdit?.id).map((t) => ({ id: t.id, name: t.title }))}
-                          selectedIds={planning.blockedByIds}
-                          onChange={(ids) => setPlanning({ ...planning, blockedByIds: ids })}
-                          placeholder="Tasks that must finish first..."
-                          disabled={!newTaskProjectId}
-                        />
                       </div>
                     </div>
                   </details>

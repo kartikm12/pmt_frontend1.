@@ -8,7 +8,7 @@ type Row = Awaited<ReturnType<typeof api.getWorkload>>[number];
 // Above this many open tasks a person is flagged as stretched
 const BUSY = 8;
 
-// Who carries how much: open and overdue tasks, estimated hours left, hours logged this week
+// Who carries how much: open and overdue tasks
 export function WorkloadPanel() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -30,7 +30,7 @@ export function WorkloadPanel() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              {["Person", "Open tasks", "Overdue", "Hours estimated", "Logged this week"].map((h) => (
+              {["Person", "Open tasks", "Overdue"].map((h) => (
                 <th key={h} className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{h}</th>
               ))}
             </tr>
@@ -56,8 +56,6 @@ export function WorkloadPanel() {
                   </div>
                 </td>
                 <td className={`px-6 py-4 font-bold ${r.overdueTasks ? "text-red-600 dark:text-red-400" : "text-slate-400"}`}>{r.overdueTasks}</td>
-                <td className="px-6 py-4 text-slate-700 dark:text-slate-300">{Math.round(r.estimatedHours * 10) / 10}h</td>
-                <td className="px-6 py-4 text-slate-700 dark:text-slate-300">{Math.round(r.loggedHoursThisWeek * 10) / 10}h</td>
               </tr>
             ))}
           </tbody>

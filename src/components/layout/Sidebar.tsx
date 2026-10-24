@@ -53,7 +53,9 @@ export function Sidebar({ isOpen, onClose, onLogout }: SidebarProps) {
       )}
 
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-[#0f172a] text-white flex flex-col h-screen transition-transform duration-300 lg:relative lg:translate-x-0 border-r border-slate-800",
+        // h-dvh, not h-screen: on phones 100vh includes the strip behind the browser's address/tool bars, which
+        // hid the Log out button at the bottom. dvh is the height you can actually see.
+        "fixed inset-y-0 left-0 z-50 w-64 bg-[#0f172a] text-white flex flex-col h-dvh lg:h-screen transition-transform duration-300 lg:relative lg:translate-x-0 border-r border-slate-800",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="relative flex min-h-24 items-center justify-center border-b border-slate-800 px-6 py-5">
