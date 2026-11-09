@@ -699,6 +699,7 @@ export function ProjectDetails() {
                           <div className="w-44">
                             <SingleSelectDropdown
                               ariaLabel={`Project role for ${user.name}`}
+                              searchPlaceholder="Search roles..."
                               options={(["MANAGER", "CONTRIBUTOR", "VIEWER"] as MembershipRole[]).map((r) => ({ id: r, name: ROLE_LABEL[r] }))}
                               selectedId={memberRole}
                               onChange={(r) => void changeMemberRole(user.id, r as MembershipRole)}

@@ -281,7 +281,7 @@ export function Projects() {
           </button>
         </div>
         <div className="relative min-w-[200px]">
-          <SingleSelectDropdown ariaLabel="Status"
+          <SingleSelectDropdown ariaLabel="Status" searchPlaceholder="Search statuses..."
             options={[
               { id: "All", name: "All Statuses" },
               { id: "Pending", name: "Pending (Planning & On Hold)" },
@@ -346,6 +346,7 @@ export function Projects() {
                           e.stopPropagation();
                           setActiveMenu(activeMenu === project.id ? null : project.id);
                         }}
+                        aria-label={`Actions for ${project.name}`}
                         className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       >
                         <MoreVertical className="w-5 h-5" />
@@ -558,7 +559,7 @@ function ProjectModal(props: {
           {props.setStatus && props.status && (
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Status</label>
-              <SingleSelectDropdown ariaLabel="Status"
+              <SingleSelectDropdown ariaLabel="Status" searchPlaceholder="Search statuses..."
                 options={[
                   { id: "Planning", name: "Planning" },
                   { id: "Active", name: "Active" },

@@ -524,6 +524,7 @@ export function TaskDetails() {
               <SingleSelectDropdown
                 variant="pill"
                 ariaLabel="Status"
+                searchPlaceholder="Search statuses..."
                 options={STATUSES.map((st) => ({ id: st, name: st }))}
                 selectedId={task.status}
                 disabled={statusBusy}

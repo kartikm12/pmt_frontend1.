@@ -119,7 +119,7 @@ function AuditLogView() {
       <div className="card p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <SingleSelectDropdown ariaLabel="Person" searchable searchPlaceholder="Search people..." options={[{ id: "", name: "Everyone" }, ...users.map((u) => ({ id: u.id, name: u.name }))]} selectedId={userId} onChange={setUserId} variant="default" />
         <SingleSelectDropdown ariaLabel="Project" searchable searchPlaceholder="Search projects..." options={[{ id: "", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]} selectedId={projectId} onChange={setProjectId} variant="default" />
-        <SingleSelectDropdown ariaLabel="Action" options={[{ id: "", name: "All actions" }, ...ACTIONS.map((a) => ({ id: a, name: label(a) }))]} selectedId={action} onChange={setAction} variant="default" />
+        <SingleSelectDropdown ariaLabel="Action" searchPlaceholder="Search actions..." options={[{ id: "", name: "All actions" }, ...ACTIONS.map((a) => ({ id: a, name: label(a) }))]} selectedId={action} onChange={setAction} variant="default" />
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date" className="input px-3 py-2 text-sm dark:text-slate-100" />
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" className="input px-3 py-2 text-sm dark:text-slate-100" />
       </div>

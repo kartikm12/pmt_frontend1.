@@ -61,7 +61,7 @@ export function RepeatPicker({ value, due, onChange }: { value: string; due: str
   const next = useNextDates(current, due);
   return (
     <div className="space-y-2">
-      <SingleSelectDropdown ariaLabel="Repeat" options={options} selectedId={current} searchable={false} onChange={(id) => (id === CUSTOM ? setCustomOpen(true) : onChange(id))} />
+      <SingleSelectDropdown ariaLabel="Repeat" searchPlaceholder="Search repeats..." options={options} selectedId={current} onChange={(id) => (id === CUSTOM ? setCustomOpen(true) : onChange(id))} />
       {current && (
         <div data-repeat-explainer className="flex gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
           <Repeat className="w-4 h-4 shrink-0 mt-0.5 text-indigo-500" aria-hidden="true" />
@@ -157,7 +157,7 @@ function CustomRepeatDialog({ initial, due, onCancel, onDone }: { initial: strin
           <div className="flex gap-2">
             <input type="number" min={1} max={99} value={every} onChange={(e) => setEvery(e.target.value)} aria-label="Repeat every how many" className="input w-20 px-3 py-2 text-sm dark:text-slate-100" />
             <div className="w-40">
-              <SingleSelectDropdown ariaLabel="Repeat unit" searchable={false} options={UNITS.map((u) => ({ id: u.freq, name: unitName(u) }))} selectedId={freq} onChange={(f) => setFreq(f as Freq)} />
+              <SingleSelectDropdown ariaLabel="Repeat unit" searchPlaceholder="Search units..." options={UNITS.map((u) => ({ id: u.freq, name: unitName(u) }))} selectedId={freq} onChange={(f) => setFreq(f as Freq)} />
             </div>
           </div>
         </div>

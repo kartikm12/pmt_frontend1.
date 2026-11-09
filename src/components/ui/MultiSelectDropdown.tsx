@@ -146,6 +146,7 @@ export function MultiSelectDropdown({
               <input
                 type="text"
                 placeholder="Search team members..."
+                aria-label={`Search ${ariaLabel ?? "team members"}`}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}

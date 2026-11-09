@@ -76,6 +76,7 @@ export function PendingSignups({ roleOptions, onApproved }: { roleOptions: User[
             <div className="w-48">
               <SingleSelectDropdown
                 ariaLabel={`Role for ${p.fullName}`}
+                searchPlaceholder="Search roles..."
                 options={roleOptions.map((r) => ({ id: r, name: r }))}
                 selectedId={roles[p.id] ?? "Team Member"}
                 onChange={(r) => setRoles({ ...roles, [p.id]: r as User["role"] })}

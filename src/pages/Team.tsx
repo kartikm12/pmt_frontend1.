@@ -224,7 +224,7 @@ export function Team() {
                     <input required type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full px-4 py-3 input text-sm focus:outline-none transition-all dark:text-slate-100 font-medium" />
                   </Field>
                   <Field label="Role">
-                    <SingleSelectDropdown ariaLabel="Role"
+                    <SingleSelectDropdown ariaLabel="Role" searchPlaceholder="Search roles..."
                       options={roleOptions}
                       selectedId={inviteRole}
                       onChange={(id) => setInviteRole(id as User["role"])}
@@ -305,7 +305,7 @@ export function Team() {
                     <input disabled type="email" value={inviteEmail} className="w-full px-4 py-3 input text-sm opacity-50 cursor-not-allowed dark:text-slate-100 font-medium" />
                   </Field>
                   <Field label="Role">
-                    <SingleSelectDropdown ariaLabel="Role"
+                    <SingleSelectDropdown ariaLabel="Role" searchPlaceholder="Search roles..."
                       options={roleOptions}
                       selectedId={inviteRole}
                       onChange={(id) => setInviteRole(id as User["role"])}
@@ -381,7 +381,7 @@ export function Team() {
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Role:</span>
             <div className="min-w-[160px]">
-              <SingleSelectDropdown ariaLabel="Role"
+              <SingleSelectDropdown ariaLabel="Role" searchPlaceholder="Search roles..."
                 options={[
                   { id: "All Roles", name: "All Roles" },
                   ...ROLE_OPTIONS.map((role) => ({ id: role, name: role }))

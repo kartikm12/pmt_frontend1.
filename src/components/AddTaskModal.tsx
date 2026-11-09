@@ -156,7 +156,7 @@ export function AddTaskModal({
   const statusField = (
     <div className="space-y-1">
       <label htmlFor="task-status" className={label}>Status</label>
-      <SingleSelectDropdown ariaLabel="Status"
+      <SingleSelectDropdown ariaLabel="Status" searchPlaceholder="Search statuses..."
         options={[
           { id: "To Do", name: "To Do" },
           { id: "In Progress", name: "In Progress" },

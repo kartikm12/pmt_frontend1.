@@ -18,7 +18,7 @@ interface SingleSelectDropdownProps {
   variant?: "default" | "ghost" | "pill";
   // Name read out by screen readers (and used by tests), e.g. "Status"
   ariaLabel?: string;
-  // A search box helps long lists; for a handful of choices it's clutter (default: more than 6 options)
+  // Every dropdown has a search box (asked for 9 Nov: "for everything"); false hides it
   searchable?: boolean;
   // What the search box says, e.g. "Search projects..."
   searchPlaceholder?: string;
@@ -46,7 +46,7 @@ export function SingleSelectDropdown({
   const popupRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, up: false });
   const listId = useId();
-  const showSearch = searchable ?? options.length > 6;
+  const showSearch = searchable ?? true;
 
   const filteredOptions = options.filter((o) => o.name.toLowerCase().includes(search.toLowerCase()));
   const displayOptions = maxInitialOptions && !search ? filteredOptions.slice(0, maxInitialOptions) : filteredOptions;
@@ -92,7 +92,9 @@ export function SingleSelectDropdown({
     if (isOpen) setActive(Math.max(0, displayOptions.findIndex((o) => o.id === selectedId)));
   }, [isOpen]);
 
-  useEffect(() => setActive(0), [search]);
+  // Typing moves the highlight to the best match; clearing the search on reopen must not undo "start on the
+  // chosen option" above (Enter straight away would otherwise pick the top item instead of the current one)
+  useEffect(() => { if (search) setActive(0); }, [search]);
 
   const open = () => {
     if (disabled) return;

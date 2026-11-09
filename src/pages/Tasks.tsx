@@ -345,7 +345,7 @@ export function Tasks() {
 
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
             <div className="relative min-w-0 sm:min-w-[160px]">
-              <SingleSelectDropdown ariaLabel="Status" 
+              <SingleSelectDropdown ariaLabel="Status" searchPlaceholder="Search statuses..."
                 options={[
                   { id: "All", name: "All Statuses" },
                   { id: "Pending", name: "Pending" },
@@ -366,7 +366,7 @@ export function Tasks() {
             </div>
 
             <div className="relative min-w-0 sm:min-w-[160px]">
-              <SingleSelectDropdown ariaLabel="Priority" 
+              <SingleSelectDropdown ariaLabel="Priority" searchPlaceholder="Search priorities..."
                 options={[
                   { id: "All", name: "All Priorities" },
                   { id: "Urgent", name: "Urgent" },
@@ -419,7 +419,7 @@ export function Tasks() {
         </div>
         {allLabels.length > 0 && (
           <div className="min-w-[160px]">
-            <SingleSelectDropdown ariaLabel="Label"
+            <SingleSelectDropdown ariaLabel="Label" searchPlaceholder="Search labels..."
               options={[{ id: "All", name: "All labels" }, ...allLabels.map((l) => ({ id: l, name: l }))]}
               selectedId={labelFilter}
               onChange={setLabelFilter}
@@ -442,6 +442,7 @@ export function Tasks() {
             <div className="w-40">
               <SingleSelectDropdown
                 ariaLabel="Set status of selected tasks"
+                searchPlaceholder="Search statuses..."
                 placeholder="Set status…"
                 options={STATUSES.map((s) => ({ id: s, name: s }))}
                 selectedId=""
