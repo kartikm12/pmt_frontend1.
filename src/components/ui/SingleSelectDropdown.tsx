@@ -20,6 +20,8 @@ interface SingleSelectDropdownProps {
   ariaLabel?: string;
   // A search box helps long lists; for a handful of choices it's clutter (default: more than 6 options)
   searchable?: boolean;
+  // What the search box says, e.g. "Search projects..."
+  searchPlaceholder?: string;
 }
 
 // The app's own dropdown, used everywhere instead of the browser's <select>. Keyboard: Tab to it,
@@ -34,7 +36,8 @@ export function SingleSelectDropdown({
   Icon,
   variant = "default",
   ariaLabel,
-  searchable
+  searchable,
+  searchPlaceholder = "Search options..."
 }: SingleSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -170,7 +173,7 @@ export function SingleSelectDropdown({
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Search options..."
+                  placeholder={searchPlaceholder}
                   aria-label={`Search ${ariaLabel ?? "options"}`}
                   aria-controls={listId}
                   aria-activedescendant={displayOptions[active] ? `${listId}-${active}` : undefined}

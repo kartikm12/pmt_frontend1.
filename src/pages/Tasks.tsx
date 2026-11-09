@@ -400,7 +400,7 @@ export function Tasks() {
           My tasks
         </button>
         <div className="min-w-[180px]">
-          <SingleSelectDropdown ariaLabel="Project"
+          <SingleSelectDropdown ariaLabel="Project" searchable searchPlaceholder="Search projects..."
             options={[{ id: "All", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]}
             selectedId={projectFilter}
             onChange={setProjectFilter}
@@ -409,7 +409,7 @@ export function Tasks() {
           />
         </div>
         <div className="min-w-[180px]">
-          <SingleSelectDropdown ariaLabel="Person"
+          <SingleSelectDropdown ariaLabel="Person" searchable searchPlaceholder="Search people..."
             options={[{ id: "All", name: "Everyone" }, ...users.map((u) => ({ id: u.id, name: u.name }))]}
             selectedId={personFilter}
             onChange={setPersonFilter}

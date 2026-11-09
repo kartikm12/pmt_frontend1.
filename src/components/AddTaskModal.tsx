@@ -276,7 +276,7 @@ export function AddTaskModal({
                 {newTaskProjectId !== undefined && setNewTaskProjectId && projects && (
                   <div className="space-y-1">
                     <label htmlFor="task-project" className={label}>Project</label>
-                    <SingleSelectDropdown ariaLabel="Project"
+                    <SingleSelectDropdown ariaLabel="Project" searchable searchPlaceholder="Search projects..."
                       options={projects.map(p => ({ id: p.id, name: p.name }))}
                       selectedId={newTaskProjectId || ""}
                       onChange={setNewTaskProjectId}

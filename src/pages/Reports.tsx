@@ -107,11 +107,11 @@ export function Reports() {
             ))}
           </div>
           <div className="w-full sm:w-auto sm:min-w-[190px]">
-            <SingleSelectDropdown ariaLabel="Project" options={[{ id: "", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]} selectedId={projectId} onChange={setProjectId} Icon={FolderKanban} variant="default" />
+            <SingleSelectDropdown ariaLabel="Project" searchable searchPlaceholder="Search projects..." options={[{ id: "", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]} selectedId={projectId} onChange={setProjectId} Icon={FolderKanban} variant="default" />
           </div>
           {manager && (
             <div className="w-full sm:w-auto sm:min-w-[190px]">
-              <SingleSelectDropdown ariaLabel="Person" options={[{ id: "", name: "Everyone" }, ...people.map((u) => ({ id: u.id, name: u.name }))]} selectedId={memberId} onChange={setMemberId} Icon={UserIcon} variant="default" />
+              <SingleSelectDropdown ariaLabel="Person" searchable searchPlaceholder="Search people..." options={[{ id: "", name: "Everyone" }, ...people.map((u) => ({ id: u.id, name: u.name }))]} selectedId={memberId} onChange={setMemberId} Icon={UserIcon} variant="default" />
             </div>
           )}
         </div>

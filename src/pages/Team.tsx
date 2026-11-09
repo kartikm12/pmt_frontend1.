@@ -257,7 +257,7 @@ export function Team() {
                     </div>
                   </Field>
                   <Field label="Assign Project">
-                    <SingleSelectDropdown ariaLabel="Project"
+                    <SingleSelectDropdown ariaLabel="Project" searchable searchPlaceholder="Search projects..."
                       options={[
                         { id: "", name: "No Project" },
                         ...allProjects.map(p => ({ id: p.id, name: p.name }))
@@ -319,7 +319,7 @@ export function Team() {
                     <input type="text" value={inviteTitle} onChange={(e) => setInviteTitle(e.target.value)} className="w-full px-4 py-3 input text-sm focus:outline-none transition-all dark:text-slate-100 font-medium" placeholder="Frontend Developer" />
                   </Field>
                   <Field label="Assign Project">
-                    <SingleSelectDropdown ariaLabel="Project"
+                    <SingleSelectDropdown ariaLabel="Project" searchable searchPlaceholder="Search projects..."
                       options={[
                         { id: "", name: "No Project" },
                         ...allProjects.map(p => ({ id: p.id, name: p.name }))

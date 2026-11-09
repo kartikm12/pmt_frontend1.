@@ -137,10 +137,10 @@ export function Calendar() {
             My tasks
           </button>
           <div className="min-w-[180px]">
-            <SingleSelectDropdown ariaLabel="Project" options={[{ id: "All", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]} selectedId={projectFilter} onChange={setProjectFilter} Icon={FolderKanban} variant="default" />
+            <SingleSelectDropdown ariaLabel="Project" searchable searchPlaceholder="Search projects..." options={[{ id: "All", name: "All projects" }, ...projects.map((p) => ({ id: p.id, name: p.name }))]} selectedId={projectFilter} onChange={setProjectFilter} Icon={FolderKanban} variant="default" />
           </div>
           <div className="min-w-[180px]">
-            <SingleSelectDropdown ariaLabel="Person" options={[{ id: "All", name: "Everyone" }, ...users.map((u) => ({ id: u.id, name: u.name }))]} selectedId={personFilter} onChange={setPersonFilter} Icon={UserIcon} variant="default" />
+            <SingleSelectDropdown ariaLabel="Person" searchable searchPlaceholder="Search people..." options={[{ id: "All", name: "Everyone" }, ...users.map((u) => ({ id: u.id, name: u.name }))]} selectedId={personFilter} onChange={setPersonFilter} Icon={UserIcon} variant="default" />
           </div>
         </div>
       </div>
