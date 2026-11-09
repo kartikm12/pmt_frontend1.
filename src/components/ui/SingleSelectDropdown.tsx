@@ -60,7 +60,11 @@ export function SingleSelectDropdown({
       if (!r) return;
       const room = window.innerHeight - r.bottom;
       const up = room < 300 && r.top > room;
-      setCoords({ top: up ? r.top + window.scrollY : r.bottom + window.scrollY, left: r.left + window.scrollX, width: Math.max(r.width, 180), up });
+      // A search box needs room for its hint ("Search projects...") and names on one line; never wider than the
+      // screen, and pulled left when it would run off the right edge
+      const width = Math.min(Math.max(r.width, showSearch ? 240 : 180), window.innerWidth - 16);
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      setCoords({ top: up ? r.top + window.scrollY : r.bottom + window.scrollY, left: left + window.scrollX, width, up });
     };
     place();
     window.addEventListener("scroll", place, true);

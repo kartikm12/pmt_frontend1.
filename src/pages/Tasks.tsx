@@ -455,6 +455,8 @@ export function Tasks() {
               <div className="w-48">
                 <SingleSelectDropdown
                   ariaLabel="Assign selected tasks to"
+                  searchable
+                  searchPlaceholder="Search people..."
                   placeholder="Assign to…"
                   options={users.filter((u) => u.status !== "Suspended").map((u) => ({ id: u.id, name: u.name }))}
                   selectedId=""
