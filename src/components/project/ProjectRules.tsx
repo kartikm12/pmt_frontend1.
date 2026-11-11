@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Edit2, Loader2, Plus, Trash2, X, Zap } from "lucide-react";
+import { AlarmClock, AlertTriangle, ArrowRightLeft, CalendarClock, Edit2, Loader2, Plus, Sparkles, Trash2, UserPlus, X, Zap, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { BoardColumn, ProjectRule, RuleActionType, RuleTrigger } from "@/lib/api-types";
@@ -39,6 +39,37 @@ const ACTIONS: { id: RuleActionType; name: string }[] = [
 ];
 const PRIORITIES = [{ id: "LOW", name: "Low" }, { id: "MEDIUM", name: "Medium" }, { id: "HIGH", name: "High" }, { id: "URGENT", name: "Urgent" }];
 const GROUPS = [{ id: "PROJECT_MANAGERS", name: "The project managers" }, { id: "ASSIGNEES", name: "The task's assignees" }];
+
+// Each kind of "when" has its own icon and tint in the list
+const TRIGGER_LOOK: Record<RuleTrigger, { icon: LucideIcon; tone: string }> = {
+  MOVED_TO_COLUMN: { icon: ArrowRightLeft, tone: "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300" },
+  TASK_CREATED: { icon: Plus, tone: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300" },
+  ASSIGNED: { icon: UserPlus, tone: "bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300" },
+  DUE_TOMORROW: { icon: CalendarClock, tone: "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300" },
+  OVERDUE: { icon: AlarmClock, tone: "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300" }
+};
+
+// Ready-made starting points for an empty Rules tab (opened in the editor, nothing saved until Save)
+function examples(columns: BoardColumn[]): { title: string; hint: string; draft: Draft }[] {
+  const review = columns.find((c) => c.stage === "Review" && !c.id.startsWith("stage:"));
+  return [
+    ...(review ? [{
+      title: `Tell managers when work reaches ${review.name}`,
+      hint: "So nothing waits unseen for a review",
+      draft: { trigger: "MOVED_TO_COLUMN" as RuleTrigger, triggerValue: review.id, conditions: [], actions: [{ type: "NOTIFY" as RuleActionType, value: "PROJECT_MANAGERS" }], enabled: true }
+    }] : []),
+    {
+      title: "Push late work to Urgent",
+      hint: "2 days overdue: Urgent, and the assignees are told",
+      draft: { trigger: "OVERDUE", triggerValue: "2", conditions: [], actions: [{ type: "SET_PRIORITY", value: "URGENT" }, { type: "NOTIFY", value: "ASSIGNEES" }], enabled: true }
+    },
+    {
+      title: "Make bugs High priority",
+      hint: "Any new task labelled bug",
+      draft: { trigger: "TASK_CREATED", triggerValue: "", conditions: [{ type: "LABEL", priorities: [], value: "bug" }], actions: [{ type: "SET_PRIORITY", value: "HIGH" }], enabled: true }
+    }
+  ];
+}
 
 const emptyDraft = (): Draft => ({ trigger: "MOVED_TO_COLUMN", triggerValue: "", conditions: [], actions: [{ type: "ASSIGN", value: "" }], enabled: true });
 
@@ -84,7 +115,9 @@ export function describeRule(rule: Pick<ProjectRule, "trigger" | "triggerValue" 
       default: return a.type;
     }
   });
-  return { text: `${when}${ifs.length ? `, if ${listWords(ifs)}` : ""}, then ${listWords(thens)}.`, broken };
+  const onlyIf = ifs.length ? listWords(ifs) : "";
+  const then = listWords(thens);
+  return { text: `${when}${onlyIf ? `, if ${onlyIf}` : ""}, then ${then}.`, when, onlyIf, then, broken };
 }
 
 function toDraft(rule: ProjectRule): Draft {
@@ -175,6 +208,11 @@ export function ProjectRules({ projectId, columns, people, canManage, closed }: 
     setTried(false);
     setSaveError("");
   };
+  const startFrom = (draft: Draft) => {
+    setEditing({ draft });
+    setTried(false);
+    setSaveError("");
+  };
   const startEdit = (rule: ProjectRule) => {
     setEditing({ id: rule.id, draft: toDraft(rule) });
     setTried(false);
@@ -244,26 +282,54 @@ export function ProjectRules({ projectId, columns, people, canManage, closed }: 
         </div>
 
         {rules.length === 0 ? (
-          <div className="py-8 text-center">
-            <Zap className="w-6 h-6 mx-auto text-slate-300 dark:text-slate-600" aria-hidden="true" />
-            <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">No rules yet</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">For example: when a task moves to Review, assign the lead and tell the project managers.</p>
+          <div className="pt-6 pb-2" data-rules-empty>
+            <div className="text-center">
+              <Zap className="w-6 h-6 mx-auto text-slate-300 dark:text-slate-600" aria-hidden="true" />
+              <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">No rules yet</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{editable ? "Start from an example, or make your own with New rule." : "When a project manager adds a rule, it shows here."}</p>
+            </div>
+            {editable && !editing && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
+                {examples(columns).map((ex) => (
+                  <button
+                    key={ex.title}
+                    type="button"
+                    data-rule-example
+                    onClick={() => startFrom(ex.draft)}
+                    className="text-left rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-indigo-300 hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4 text-indigo-500 mb-2" aria-hidden="true" />
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{ex.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{ex.hint}</p>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
-          <ul className="divide-y divide-slate-100 dark:divide-slate-800 mt-2">
+          <ul className="mt-3 space-y-3">
             {rules.map((rule) => {
-              const { text, broken } = describeRule(rule, columns, people);
+              const { text, when, onlyIf, then, broken } = describeRule(rule, columns, people);
+              const look = TRIGGER_LOOK[rule.trigger] ?? TRIGGER_LOOK.TASK_CREATED;
+              const Icon = look.icon;
               return (
-                <li key={rule.id} data-rule={rule.id} className="py-3 flex flex-wrap sm:flex-nowrap items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm leading-relaxed ${rule.enabled ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{text}</p>
+                <li key={rule.id} data-rule={rule.id} data-rule-text={text} className={`rounded-xl border p-3 sm:p-4 flex flex-wrap sm:flex-nowrap items-center gap-3 transition-colors ${rule.enabled ? "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" : "border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40"}`}>
+                  <span aria-hidden="true" className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${rule.enabled ? look.tone : "bg-slate-100 text-slate-400 dark:bg-slate-800"}`}>
+                    <Icon className="w-5 h-5" />
+                  </span>
+                  {/* Phones: icon and words fill the first line, the controls go on a line below */}
+                  <div className={`flex-1 basis-[calc(100%-52px)] sm:basis-auto min-w-0 ${rule.enabled ? "" : "opacity-60"}`}>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{when}</p>
+                    {onlyIf && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Only if {onlyIf}</p>}
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5"><span className="text-slate-400">Then</span> {then}</p>
                     {broken && (
                       <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mt-1 inline-flex items-center gap-1">
                         <AlertTriangle className="w-3.5 h-3.5" /> It names a column or person that's gone{editable ? ". Edit it to choose again." : "."}
                       </p>
                     )}
                   </div>
-                  <span className="text-xs text-slate-400 whitespace-nowrap" data-rule-runs>
+                  <div data-rule-controls className="w-full sm:w-auto flex items-center justify-end gap-2 sm:gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
+                  <span className="text-xs text-slate-400 whitespace-nowrap mr-auto sm:mr-0" data-rule-runs>
                     {rule.runCount ? `ran ${rule.runCount} time${rule.runCount === 1 ? "" : "s"}` : "never ran"}
                   </span>
                   {editable ? (
@@ -290,6 +356,7 @@ export function ProjectRules({ projectId, columns, people, canManage, closed }: 
                       {rule.enabled ? "On" : "Off"}
                     </span>
                   )}
+                  </div>
                 </li>
               );
             })}

@@ -14,6 +14,13 @@ const STAGE_TONE: Record<TaskStatus, string> = {
   Review: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
   Completed: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
 };
+// One colour per stage, used on the board's column headers and here: grey, indigo, amber, green
+export const STAGE_DOT: Record<TaskStatus, string> = {
+  "To Do": "bg-slate-400",
+  "In Progress": "bg-indigo-500",
+  Review: "bg-amber-500",
+  Completed: "bg-emerald-500"
+};
 const STAGES: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 const MAX_COLUMNS = 12;
 
@@ -150,14 +157,17 @@ export function BoardColumnsEditor({ projectId, projectName, columns, counts, on
                               <GripVertical className="w-4 h-4" />
                             </span>
                             <div className="min-w-0">
-                              <input
-                                ref={index === 0 ? firstInput : undefined}
-                                value={row.name}
-                                maxLength={30}
-                                aria-label={`Column ${index + 1} name`}
-                                onChange={(e) => update(row.key, { name: e.target.value })}
-                                className="w-full px-3 py-2 input text-sm font-medium dark:text-slate-100"
-                              />
+                              <div className="relative">
+                                <span aria-hidden="true" data-stage-dot={row.stage} className={`absolute left-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${STAGE_DOT[row.stage]}`} />
+                                <input
+                                  ref={index === 0 ? firstInput : undefined}
+                                  value={row.name}
+                                  maxLength={30}
+                                  aria-label={`Column ${index + 1} name`}
+                                  onChange={(e) => update(row.key, { name: e.target.value })}
+                                  className="w-full pl-8 pr-3 py-2 input text-sm font-medium dark:text-slate-100"
+                                />
+                              </div>
                               {count > 0 && <p className="text-[11px] text-slate-400 mt-0.5 pl-1">{count} task{count === 1 ? "" : "s"}</p>}
                             </div>
                             <div className="col-start-2 sm:col-start-auto row-start-2 sm:row-start-auto">

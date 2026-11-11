@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { AddTaskModal } from "@/components/AddTaskModal";
 import { api, columnOf, mapColumn, STAGE_COLUMNS, type RawColumn } from "@/lib/api";
 import type { BoardColumn, MembershipRole, Project, Task, TaskPriority, TaskStatus, User } from "@/lib/api-types";
-import { BoardColumnsEditor, columnsSavedMessage, STAGE_LABEL } from "@/components/project/BoardColumnsEditor";
+import { BoardColumnsEditor, columnsSavedMessage, STAGE_DOT, STAGE_LABEL } from "@/components/project/BoardColumnsEditor";
 import { ProjectRules } from "@/components/project/ProjectRules";
 import { emptyPlanning, openBlockers, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
 import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
@@ -569,7 +569,8 @@ export function ProjectDetails() {
               <div key={col.id} className="w-[320px] flex flex-col group/column h-full">
                 <div className="flex items-center justify-between mb-5 px-1 bg-white/50 dark:bg-slate-900/50 p-2.5 rounded-2xl backdrop-blur-sm border border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                    {/* The dot's colour says what the column counts as (grey, indigo, amber, green) */}
+                    <span aria-hidden="true" data-stage-dot={col.stage} className={`w-2.5 h-2.5 rounded-full ${STAGE_DOT[col.stage]}`} />
                     <h3 title={`Counts as ${STAGE_LABEL[col.stage]}`} className="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wider" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{col.name}</h3>
                     <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400">
                       {columnCounts.get(col.id) ?? 0}
