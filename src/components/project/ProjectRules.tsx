@@ -58,13 +58,17 @@ export function describeRule(rule: Pick<ProjectRule, "trigger" | "triggerValue" 
     return p?.name ?? "someone no longer on the team";
   };
   const pri = (id: string) => PRIORITIES.find((p) => p.id === id)?.name ?? id;
-  const when = {
-    TASK_CREATED: "When a task is created",
-    MOVED_TO_COLUMN: `When a task moves to ${col(rule.triggerValue)}`,
-    ASSIGNED: rule.triggerValue ? `When ${who(rule.triggerValue)} is assigned` : "When someone is assigned",
-    DUE_TOMORROW: "When a task is due tomorrow",
-    OVERDUE: `When a task is ${rule.triggerValue} day${rule.triggerValue === "1" ? "" : "s"} overdue`
-  }[rule.trigger];
+  // Only the rule's own kind is worked out: looking up the others would wrongly mark it as broken
+  const when = (() => {
+    switch (rule.trigger) {
+      case "TASK_CREATED": return "When a task is created";
+      case "MOVED_TO_COLUMN": return `When a task moves to ${col(rule.triggerValue)}`;
+      case "ASSIGNED": return rule.triggerValue ? `When ${who(rule.triggerValue)} is assigned` : "When someone is assigned";
+      case "DUE_TOMORROW": return "When a task is due tomorrow";
+      case "OVERDUE": return `When a task is ${rule.triggerValue} day${rule.triggerValue === "1" ? "" : "s"} overdue`;
+      default: return "When something happens";
+    }
+  })();
   const ifs: string[] = [];
   if (rule.conditions?.priorities?.length) ifs.push(`priority is ${listWords(rule.conditions.priorities.map(pri), "or")}`);
   if (rule.conditions?.label) ifs.push(`it has the label ${rule.conditions.label}`);
@@ -382,7 +386,8 @@ function RuleEditor({ draft, isNew, onChange, columns, people, problem, error, s
       <p className={label}>Only if <span className="font-normal text-slate-400">(optional)</span></p>
       <div className="space-y-2 mt-1 mb-2">
         {draft.conditions.map((c, i) => (
-          <div key={c.type} className="grid grid-cols-[minmax(0,1fr)_36px] sm:grid-cols-[180px_minmax(0,1fr)_36px] gap-2 items-start">
+          <div key={c.type} data-condition-row className="flex flex-wrap sm:flex-nowrap gap-2 items-start">
+            <div className="flex-1 sm:flex-none sm:w-44 min-w-0">
             <SingleSelectDropdown
               ariaLabel={`Condition ${i + 1}`}
               searchPlaceholder="Search conditions..."
@@ -390,7 +395,8 @@ function RuleEditor({ draft, isNew, onChange, columns, people, problem, error, s
               selectedId={c.type}
               onChange={(t) => onChange({ ...draft, conditions: draft.conditions.map((x, j) => (j === i ? { type: t as CondType, priorities: [], value: "" } : x)) })}
             />
-            <div className="col-span-2 sm:col-span-1 row-start-2 sm:row-start-auto">
+            </div>
+            <div className="w-full sm:w-auto sm:flex-1 min-w-0 order-last sm:order-none">
               {c.type === "PRIORITY" ? (
                 <div className="flex flex-wrap gap-2" role="group" aria-label="Priorities">
                   {PRIORITIES.map((p) => {
@@ -414,7 +420,7 @@ function RuleEditor({ draft, isNew, onChange, columns, people, problem, error, s
                 <SingleSelectDropdown ariaLabel="Assigned to" searchPlaceholder="Search people..." placeholder="Pick a person..." options={personOptions} selectedId={c.value} onChange={(v) => onChange({ ...draft, conditions: draft.conditions.map((x, j) => (j === i ? { ...x, value: v } : x)) })} />
               )}
             </div>
-            <button type="button" aria-label={`Remove condition ${i + 1}`} onClick={() => onChange({ ...draft, conditions: draft.conditions.filter((_, j) => j !== i) })} className="w-9 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 col-start-2 row-start-1 sm:col-start-auto">
+            <button type="button" aria-label={`Remove condition ${i + 1}`} onClick={() => onChange({ ...draft, conditions: draft.conditions.filter((_, j) => j !== i) })} className="w-9 h-10 shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -429,7 +435,8 @@ function RuleEditor({ draft, isNew, onChange, columns, people, problem, error, s
       <p className={`${label} mt-2`}>Then</p>
       <div className="space-y-2 mt-1 mb-2">
         {draft.actions.map((a, i) => (
-          <div key={i} className="grid grid-cols-[minmax(0,1fr)_36px] sm:grid-cols-[180px_minmax(0,1fr)_36px] gap-2 items-start">
+          <div key={i} data-action-row className="flex flex-wrap sm:flex-nowrap gap-2 items-start">
+            <div className="flex-1 sm:flex-none sm:w-44 min-w-0">
             <SingleSelectDropdown
               ariaLabel={`Action ${i + 1}`}
               searchPlaceholder="Search actions..."
@@ -437,14 +444,15 @@ function RuleEditor({ draft, isNew, onChange, columns, people, problem, error, s
               selectedId={a.type}
               onChange={(t) => onChange({ ...draft, actions: draft.actions.map((x, j) => (j === i ? { type: t as RuleActionType, value: "" } : x)) })}
             />
-            <div className="col-span-2 sm:col-span-1 row-start-2 sm:row-start-auto">
+            </div>
+            <div className="w-full sm:w-auto sm:flex-1 min-w-0 order-last sm:order-none">
               {valueField(a.type, a.value, (v) => onChange({ ...draft, actions: draft.actions.map((x, j) => (j === i ? { ...x, value: v } : x)) }), i)}
             </div>
             {draft.actions.length > 1 ? (
-              <button type="button" aria-label={`Remove action ${i + 1}`} onClick={() => onChange({ ...draft, actions: draft.actions.filter((_, j) => j !== i) })} className="w-9 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 col-start-2 row-start-1 sm:col-start-auto">
+              <button type="button" aria-label={`Remove action ${i + 1}`} onClick={() => onChange({ ...draft, actions: draft.actions.filter((_, j) => j !== i) })} className="w-9 h-10 shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
                 <X className="w-4 h-4" />
               </button>
-            ) : <span className="hidden sm:block" />}
+            ) : <span className="w-9 shrink-0" />}
           </div>
         ))}
       </div>
