@@ -105,6 +105,29 @@ export interface Activity {
   user?: User;
 }
 
+// A project's own board column. stage = which of the four statuses it counts as (reports use the stage).
+// Ids starting "stage:" are stand-ins for a server that has no columns yet; they're never sent back.
+export interface BoardColumn {
+  id: string;
+  name: string;
+  stage: TaskStatus;
+  position: number;
+}
+
+export type RuleTrigger = "TASK_CREATED" | "MOVED_TO_COLUMN" | "ASSIGNED" | "DUE_TOMORROW" | "OVERDUE";
+export type RuleActionType = "ASSIGN" | "ADD_WATCHER" | "MOVE_TO_COLUMN" | "SET_PRIORITY" | "ADD_LABEL" | "NOTIFY";
+export interface ProjectRule {
+  id: string;
+  projectId: string;
+  enabled: boolean;
+  trigger: RuleTrigger;
+  triggerValue: string | null;
+  conditions: { priorities?: string[]; label?: string; assigneeId?: string };
+  actions: { type: RuleActionType; value: string }[];
+  runCount: number;
+  lastRunAt: string | null;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -114,6 +137,11 @@ export interface Task {
   priority: TaskPriority;
   dueDate: string;
   status: TaskStatus;
+  // The board column it sits in (its name is shown instead of the plain status when there is one)
+  columnId?: string | null;
+  columnName?: string | null;
+  // The project's columns, on the task page's data (for its status picker)
+  columns?: BoardColumn[];
   project?: Project;
   assignees?: User[];
   comments?: Comment[];

@@ -115,7 +115,8 @@ export function SingleSelectDropdown({
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
     else if (e.key === "Home") { e.preventDefault(); setActive(0); }
     else if (e.key === "End") { e.preventDefault(); setActive(displayOptions.length - 1); }
-    else if (e.key === "Enter") { e.preventDefault(); const o = displayOptions[active]; if (o) pick(o.id); }
+    // (an Enter typed right after the search text can arrive before the highlight moves: take the top match)
+    else if (e.key === "Enter") { e.preventDefault(); const o = displayOptions[active] ?? displayOptions[0]; if (o) pick(o.id); }
     else if (e.key === "Escape") { e.preventDefault(); close(); }
     else if (e.key === "Tab") close(false);
   };
@@ -185,7 +186,11 @@ export function SingleSelectDropdown({
                   aria-activedescendant={displayOptions[active] ? `${listId}-${active}` : undefined}
                   className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    // Highlight the best match in the same update as the new list
+                    if (e.target.value) setActive(0);
+                  }}
                   onKeyDown={onListKeys}
                   autoFocus
                 />

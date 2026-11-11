@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Plus, Calendar, Paperclip, Edit2, Trash2, Lock, Repeat, CheckSquare } from "lucide-react";
+import { Plus, Calendar, Paperclip, Edit2, Trash2, Lock, Repeat, CheckSquare, Columns3 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EditProjectModal } from "@/pages/Projects";
 import { toast } from "sonner";
 import { AddTaskModal } from "@/components/AddTaskModal";
-import { api } from "@/lib/api";
-import type { MembershipRole, Project, Task, TaskPriority, TaskStatus, User } from "@/lib/api-types";
+import { api, columnOf, mapColumn, STAGE_COLUMNS, type RawColumn } from "@/lib/api";
+import type { BoardColumn, MembershipRole, Project, Task, TaskPriority, TaskStatus, User } from "@/lib/api-types";
+import { BoardColumnsEditor, columnsSavedMessage, STAGE_LABEL } from "@/components/project/BoardColumnsEditor";
+import { ProjectRules } from "@/components/project/ProjectRules";
 import { emptyPlanning, openBlockers, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
 import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
 import { useNavigation } from "@/context/NavigationContext";
@@ -23,13 +25,13 @@ import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 import { RepeatChip } from "@/components/RepeatPicker";
 import { OverdueBadge, projectIsOverdue } from "@/components/ui/OverdueBadge";
 
-const COLUMNS: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 const TABS = [
   { id: "board", label: "Board" },
   { id: "timeline", label: "Timeline" },
   { id: "team", label: "Team" },
   { id: "files", label: "Files" },
-  { id: "activity", label: "Activity" }
+  { id: "activity", label: "Activity" },
+  { id: "rules", label: "Rules" }
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 const ROLE_LABEL: Record<MembershipRole, string> = { OWNER: "Owner", MANAGER: "Manager", CONTRIBUTOR: "Contributor", VIEWER: "Viewer" };
@@ -50,10 +52,14 @@ export function ProjectDetails() {
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  // This project's own board columns (each counts as one of the four stages)
+  const [columns, setColumns] = useState<BoardColumn[]>(STAGE_COLUMNS);
+  const [editingColumns, setEditingColumns] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("board");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [newTaskColumn, setNewTaskColumn] = useState<TaskStatus>("To Do");
+  const [newTaskColumnId, setNewTaskColumnId] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>("Medium");
@@ -78,6 +84,7 @@ export function ProjectDetails() {
     try {
       const bundle = await api.getProjectBundle(id);
       setProject((prev) => (prev ? { ...bundle.project, attachments: prev.attachments } : bundle.project));
+      setColumns(bundle.columns);
       setEntityName(id, bundle.project.name);
     } catch {
       // removal is handled by project_deleted; other failures keep the current view
@@ -97,6 +104,7 @@ export function ProjectDetails() {
           api.getTeam()
         ]);
         setProject(bundle.project);
+        setColumns(bundle.columns);
         setAllProjects(projectsData);
         setEntityName(id, bundle.project.name);
         setTasks(bundle.tasks);
@@ -174,6 +182,12 @@ export function ProjectDetails() {
         }
       };
 
+      const handleColumnsUpdated = (data: { projectId: string; columns: RawColumn[] }) => {
+        if (data.projectId !== id) return;
+        setColumns(data.columns.map(mapColumn));
+        api.getProjectBundle(id).then((b) => setTasks(b.tasks)).catch(() => undefined);
+      };
+
       const handleProjectDeleted = (data: { projectId: string }) => {
         if (data.projectId !== id || deletingProjectRef.current) return;
         toast.info("This project was deleted");
@@ -186,6 +200,7 @@ export function ProjectDetails() {
       socket.on("tasks_reordered", handleReordered);
       socket.on("project_updated", handleProjectUpdated);
       socket.on("project_deleted", handleProjectDeleted);
+      socket.on("columns_updated", handleColumnsUpdated);
 
       return () => {
         socket.off("task_created", handleTaskCreated);
@@ -194,11 +209,19 @@ export function ProjectDetails() {
         socket.off("tasks_reordered", handleReordered);
         socket.off("project_updated", handleProjectUpdated);
         socket.off("project_deleted", handleProjectDeleted);
+        socket.off("columns_updated", handleColumnsUpdated);
       };
     }
   }, [socket, id]);
 
   const userMap = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+  // Which column each card is in, and how many cards each column holds
+  const cardColumn = useMemo(() => new Map(tasks.map((t) => [t.id, columnOf(columns, t)?.id])), [tasks, columns]);
+  const columnCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const colId of cardColumn.values()) if (colId) m.set(colId, (m.get(colId) ?? 0) + 1);
+    return m;
+  }, [cardColumn]);
 
   if (loadError) {
     return (
@@ -228,6 +251,7 @@ export function ProjectDetails() {
     if (task) {
       setTaskToEdit(task);
       setNewTaskColumn(task.status);
+      setNewTaskColumnId(cardColumn.get(task.id) ?? null);
       setNewTaskTitle(task.title);
       setNewTaskDescription(task.description);
       setNewTaskPriority(task.priority);
@@ -238,6 +262,7 @@ export function ProjectDetails() {
     } else {
       setTaskToEdit(null);
       setNewTaskColumn(column);
+      setNewTaskColumnId(null);
       setNewTaskTitle("");
       setNewTaskDescription("");
       setNewTaskPriority("Medium");
@@ -284,6 +309,7 @@ export function ProjectDetails() {
           description: newTaskDescription,
           priority: newTaskPriority,
           status: newTaskColumn,
+          columnId: newTaskColumnId,
           dueDate: new Date(newTaskDueDate).toISOString(),
           projectId: newTaskProjectId,
           assigneeIds: newTaskAssigneeIds
@@ -303,6 +329,7 @@ export function ProjectDetails() {
           description: newTaskDescription,
           priority: newTaskPriority,
           status: newTaskColumn,
+          columnId: newTaskColumnId,
           dueDate: new Date(newTaskDueDate).toISOString(),
           projectId: id,
           assigneeIds: newTaskAssigneeIds
@@ -319,24 +346,28 @@ export function ProjectDetails() {
     }
   };
 
-  // Same column: save the new card order. Another column: change status, then save the order there.
+  // Same column: save the new card order. Another column: move the card there (its status becomes that
+  // column's stage), then save the order there. The project's rules may change the card further.
   const moveCard = async ({ draggableId, source, destination }: DropResult) => {
     if (!destination || !id) return;
-    const newStatus = destination.droppableId as TaskStatus;
+    const target = columns.find((c) => c.id === destination.droppableId);
     const card = tasks.find((t) => t.id === draggableId);
-    if (!card) return;
+    if (!card || !target) return;
     const before = tasks;
-    const column = tasks.filter((t) => t.status === newStatus && t.id !== draggableId);
-    column.splice(destination.index, 0, { ...card, status: newStatus });
+    const moved = { ...card, status: target.stage, columnId: target.id };
+    const column = tasks.filter((t) => cardColumn.get(t.id) === target.id && t.id !== draggableId);
+    column.splice(destination.index, 0, moved);
     const orderedIds = column.map((t) => t.id);
-    setTasks(applyOrder(tasks.map((t) => (t.id === draggableId ? { ...t, status: newStatus } : t)), orderedIds));
+    setTasks(applyOrder(tasks.map((t) => (t.id === draggableId ? moved : t)), orderedIds));
     try {
       if (destination.droppableId !== source.droppableId) {
-        const updated = await api.updateTask(draggableId, { status: newStatus });
+        const updated = await api.updateTask(draggableId, { status: target.stage, columnId: target.id });
         setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-        toast.success(`Moved to ${newStatus}`);
+        toast.success(`Moved to ${target.name}`);
+        // A rule moved it on somewhere else: keep that, don't force the dropped order
+        if (updated.columnId && updated.columnId !== target.id) return;
       }
-      await api.reorderTasks(id, newStatus, orderedIds);
+      await api.reorderTasks(id, target.stage, orderedIds, target.id);
     } catch (error) {
       setTasks(before);
       toast.error(error instanceof Error ? error.message : "Couldn't move the task");
@@ -350,7 +381,8 @@ export function ProjectDetails() {
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
     const card = tasks.find((t) => t.id === draggableId);
     const blockers = card ? openBlockers(card) : [];
-    if (destination.droppableId !== source.droppableId && destination.droppableId !== "To Do" && blockers.length) {
+    const targetStage = columns.find((c) => c.id === destination.droppableId)?.stage;
+    if (destination.droppableId !== source.droppableId && targetStage !== "To Do" && blockers.length) {
       setBlockedDrop({ result, names: blockers.map((b) => `"${b.title}"`).join(", ") });
       return;
     }
@@ -505,36 +537,58 @@ export function ProjectDetails() {
         {project.myRole === "viewer" && (
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg">View only</span>
         )}
+        {activeTab === "board" && canManageWork && (
+          <button type="button" onClick={() => setEditingColumns(true)} className="btn-secondary px-4 py-2 text-sm font-bold inline-flex items-center gap-2">
+            <Columns3 className="w-4 h-4" /> Board columns
+          </button>
+        )}
       </div>
+
+      {editingColumns && (
+        <BoardColumnsEditor
+          projectId={project.id}
+          projectName={project.name}
+          columns={columns}
+          counts={columnCounts}
+          onClose={() => setEditingColumns(false)}
+          onSaved={(saved, movedCount) => {
+            setColumns(saved);
+            setEditingColumns(false);
+            toast.success(columnsSavedMessage(movedCount));
+            // Cards in removed or re-staged columns moved: read them again
+            if (movedCount) api.getProjectBundle(project.id).then((b) => setTasks(b.tasks)).catch(() => undefined);
+          }}
+        />
+      )}
 
       {activeTab === "board" ? (
         <div className="flex-1 overflow-x-auto pb-8 custom-scrollbar">
           <DragDropContext onDragEnd={handleDragEnd}>
           <div className="flex gap-6 h-full min-w-max p-1">
-            {COLUMNS.map((column) => (
-              <div key={column} className="w-[320px] flex flex-col group/column h-full">
+            {columns.map((col) => (
+              <div key={col.id} className="w-[320px] flex flex-col group/column h-full">
                 <div className="flex items-center justify-between mb-5 px-1 bg-white/50 dark:bg-slate-900/50 p-2.5 rounded-2xl backdrop-blur-sm border border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-3">
                     <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
-                    <h3 className="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wider" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{column}</h3>
+                    <h3 title={`Counts as ${STAGE_LABEL[col.stage]}`} className="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wider" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{col.name}</h3>
                     <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                      {tasks.filter((t) => t.status === column).length}
+                      {columnCounts.get(col.id) ?? 0}
                     </span>
                   </div>
                 </div>
 
-                <Droppable droppableId={column}>
+                <Droppable droppableId={col.id}>
                   {(dropProvided, dropSnapshot) => (
                 <div
                   ref={dropProvided.innerRef}
                   {...dropProvided.droppableProps}
-                  data-column={column}
+                  data-column={col.name}
                   className={`flex-1 min-h-[200px] transition-colors rounded-2xl p-1 ${
                     dropSnapshot.isDraggingOver ? "bg-indigo-50/70 dark:bg-indigo-900/20 ring-2 ring-indigo-300/60 dark:ring-indigo-700/50" : ""
                   }`}
                 >
                   {tasks
-                    .filter((task) => task.status === column)
+                    .filter((task) => cardColumn.get(task.id) === col.id)
                     .map((task, index) => {
                       const blockers = openBlockers(task);
                       return (
@@ -730,6 +784,14 @@ export function ProjectDetails() {
         </div>
       ) : activeTab === "timeline" ? (
         <ProjectTimeline tasks={tasks} />
+      ) : activeTab === "rules" ? (
+        <ProjectRules
+          projectId={project.id}
+          columns={columns}
+          people={project.teamMemberIds.map((m) => userMap.get(m)).filter((u): u is User => !!u).map((u) => ({ id: u.id, name: u.name }))}
+          canManage={canManage}
+          closed={closed}
+        />
       ) : (
         <ProjectActivity projectId={project.id} />
       )}
@@ -776,6 +838,8 @@ export function ProjectDetails() {
         setNewTaskPriority={setNewTaskPriority}
         newTaskStatus={newTaskColumn}
         setNewTaskStatus={setNewTaskColumn}
+        newTaskColumnId={newTaskColumnId}
+        setNewTaskColumnId={setNewTaskColumnId}
         newTaskAssigneeIds={newTaskAssigneeIds}
         setNewTaskAssigneeIds={setNewTaskAssigneeIds}
         newTaskProjectId={newTaskProjectId}

@@ -1,11 +1,11 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown, Loader2, FolderKanban } from 'lucide-react';
-import type { Task, TaskPriority, TaskStatus } from '@/lib/api-types';
+import type { BoardColumn, Task, TaskPriority, TaskStatus } from '@/lib/api-types';
 import { MultiSelectDropdown } from '@/components/ui/MultiSelectDropdown';
 import { SingleSelectDropdown } from '@/components/ui/SingleSelectDropdown';
 import { LabelInput } from '@/components/ui/LabelChip';
-import { api } from '@/lib/api';
+import { api, columnOf } from '@/lib/api';
 import { safeFormat } from '@/utils/dateUtils';
 import type { PlanningState } from '@/lib/planning';
 import { RepeatPicker } from '@/components/RepeatPicker';
@@ -25,6 +25,9 @@ interface AddTaskModalProps {
   setNewTaskPriority: (priority: TaskPriority) => void;
   newTaskStatus: TaskStatus;
   setNewTaskStatus: (status: TaskStatus) => void;
+  // The board column (the Status picker lists the project's own columns when these are given)
+  newTaskColumnId?: string | null;
+  setNewTaskColumnId?: (columnId: string | null) => void;
   newTaskAssigneeIds?: string[];
   setNewTaskAssigneeIds?: (assigneeIds: string[]) => void;
   newTaskProjectId?: string;
@@ -56,6 +59,8 @@ export function AddTaskModal({
   setNewTaskPriority,
   newTaskStatus,
   setNewTaskStatus,
+  newTaskColumnId,
+  setNewTaskColumnId,
   newTaskAssigneeIds,
   setNewTaskAssigneeIds,
   newTaskProjectId,
@@ -72,6 +77,23 @@ export function AddTaskModal({
 }: AddTaskModalProps) {
   const [submitting, setSubmitting] = React.useState(false);
   const [projectDates, setProjectDates] = React.useState({ start: "", end: "" });
+  // The chosen project's board columns (for the Status picker)
+  const [boardColumns, setBoardColumns] = React.useState<{ projectId: string; columns: BoardColumn[] } | null>(null);
+  React.useEffect(() => {
+    if (!isOpen || !newTaskProjectId || !setNewTaskColumnId) return;
+    let cancelled = false;
+    api.getColumns(newTaskProjectId)
+      .then((columns) => {
+        if (cancelled) return;
+        setBoardColumns({ projectId: newTaskProjectId, columns });
+        // Another project's column doesn't exist here: let the server pick this board's column for the status
+        if (newTaskColumnId && !columns.some((c) => c.id === newTaskColumnId)) setNewTaskColumnId(null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, newTaskProjectId]);
   React.useEffect(() => {
     if (!isOpen || statusOnly || !planning || !newTaskProjectId) return;
     let cancelled = false;
@@ -153,19 +175,38 @@ export function AddTaskModal({
     : "";
   const label = "text-xs font-semibold text-slate-500 dark:text-slate-400";
 
+  // The project's own columns when known ("Testing", "Waiting on client" ...); otherwise the four stages
+  const columns = setNewTaskColumnId && boardColumns && boardColumns.projectId === newTaskProjectId ? boardColumns.columns : null;
+  const currentColumn = columns ? columnOf(columns, { columnId: newTaskColumnId, status: newTaskStatus }) : undefined;
   const statusField = (
     <div className="space-y-1">
       <label htmlFor="task-status" className={label}>Status</label>
-      <SingleSelectDropdown ariaLabel="Status" searchPlaceholder="Search statuses..."
-        options={[
-          { id: "To Do", name: "To Do" },
-          { id: "In Progress", name: "In Progress" },
-          { id: "Review", name: "Review" },
-          { id: "Completed", name: "Completed" },
-        ]}
-        selectedId={newTaskStatus}
-        onChange={(id) => setNewTaskStatus(id as TaskStatus)}
-      />
+      {columns ? (
+        <SingleSelectDropdown ariaLabel="Status" searchPlaceholder="Search statuses..."
+          options={columns.map((c) => ({ id: c.id, name: c.name }))}
+          selectedId={currentColumn?.id ?? ""}
+          onChange={(id) => {
+            const col = columns.find((c) => c.id === id);
+            if (!col) return;
+            setNewTaskColumnId!(col.id);
+            setNewTaskStatus(col.stage);
+          }}
+        />
+      ) : (
+        <SingleSelectDropdown ariaLabel="Status" searchPlaceholder="Search statuses..."
+          options={[
+            { id: "To Do", name: "To Do" },
+            { id: "In Progress", name: "In Progress" },
+            { id: "Review", name: "Review" },
+            { id: "Completed", name: "Completed" },
+          ]}
+          selectedId={newTaskStatus}
+          onChange={(id) => {
+            setNewTaskStatus(id as TaskStatus);
+            setNewTaskColumnId?.(null);
+          }}
+        />
+      )}
     </div>
   );
 

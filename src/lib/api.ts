@@ -13,7 +13,9 @@ import type {
   Recurrence,
   Subtask,
   TaskLink,
-  TimeEntry
+  TimeEntry,
+  BoardColumn,
+  ProjectRule
 } from "./api-types";
 
 const getApiBaseUrl = () => {
@@ -77,6 +79,9 @@ export type RawTask = {
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   dueDate?: string | null;
   status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+  columnId?: string | null;
+  column?: RawColumn | null;
+  columns?: RawColumn[];
   project?: RawProject;
   assignees?: RawUser[];
   watchers?: RawUser[];
@@ -102,6 +107,29 @@ export type RawTask = {
   myRole?: ProjectRole | null;
   createdAt?: string;
 };
+
+export type RawColumn = { id: string; name: string; stage: RawTask["status"]; position?: number };
+
+export function mapColumn(raw: RawColumn, i = 0): BoardColumn {
+  return { id: raw.id, name: raw.name, stage: mapTaskStatus(raw.stage), position: raw.position ?? i };
+}
+
+// The four usual columns, for a server that doesn't send columns yet (stand-in ids, never sent back)
+export const STAGE_COLUMNS: BoardColumn[] = (["To Do", "In Progress", "Review", "Completed"] as TaskStatus[]).map((stage, i) => ({ id: `stage:${stage}`, name: stage, stage, position: i }));
+export const isStandIn = (columnId?: string | null) => !columnId || columnId.startsWith("stage:");
+
+// Which column a task shows in: its own, else the first column of its status (else the nearest stage)
+export function columnOf(columns: BoardColumn[], task: { columnId?: string | null; status: TaskStatus }): BoardColumn | undefined {
+  const own = task.columnId ? columns.find((c) => c.id === task.columnId) : undefined;
+  if (own) return own;
+  const order: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
+  const at = order.indexOf(task.status);
+  for (const i of [at, at - 1, at + 1, at - 2, at + 2, at - 3, at + 3]) {
+    const c = i >= 0 && i < 4 ? columns.find((col) => col.stage === order[i]) : undefined;
+    if (c) return c;
+  }
+  return columns[0];
+}
 
 type RawActivity = {
   id: string;
@@ -293,6 +321,9 @@ export function mapTask(raw: RawTask): Task {
     priority: raw.priority.charAt(0) + raw.priority.slice(1).toLowerCase() as any,
     dueDate: raw.dueDate ?? "",
     status: raw.status === "TODO" ? "To Do" : raw.status === "IN_PROGRESS" ? "In Progress" : raw.status === "REVIEW" ? "Review" : "Completed",
+    columnId: raw.column?.id ?? raw.columnId ?? null,
+    columnName: raw.column?.name ?? null,
+    columns: raw.columns?.length ? raw.columns.map(mapColumn) : undefined,
     project: raw.project ? mapProject(raw.project) : undefined,
     assignees: raw.assignees?.map(mapUser),
     comments: raw.comments?.map(
@@ -608,13 +639,56 @@ export const api = {
     return request<RawProject & { tasks: RawTask[]; members: Array<{ userId: string; user: RawUser }> }>(`/projects/${projectId}`);
   },
 
-  async getProjectBundle(id: string): Promise<{ project: Project; tasks: Task[]; users: User[] }> {
-    const data = await request<{ project: RawProject & { attachments?: any[] }; tasks: RawTask[]; users: RawUser[] }>(`/projects/${id}/bundle`);
+  async getProjectBundle(id: string): Promise<{ project: Project; tasks: Task[]; users: User[]; columns: BoardColumn[] }> {
+    const data = await request<{ project: RawProject & { attachments?: any[] }; tasks: RawTask[]; users: RawUser[]; columns?: RawColumn[] }>(`/projects/${id}/bundle`);
     return {
       project: { ...mapProject(data.project), attachments: data.project.attachments || [] },
       tasks: data.tasks.map(mapTask),
-      users: data.users.map(mapUser)
+      users: data.users.map(mapUser),
+      // An older server sends no columns: the board shows the usual four
+      columns: data.columns?.length ? data.columns.map(mapColumn) : STAGE_COLUMNS
     };
+  },
+
+  // ----- board columns and rules (11 Nov) -----
+  // A project's columns in board order (an older server has none: the usual four stand in)
+  async getColumns(projectId: string): Promise<BoardColumn[]> {
+    try {
+      const raw = await request<RawColumn[]>(`/projects/${projectId}/columns`);
+      return raw.length ? raw.map(mapColumn) : STAGE_COLUMNS;
+    } catch (error: any) {
+      // An older server has no such route at all ("Route not found"); "Project not found" is a real error
+      if (error?.status === 404 && error?.data?.message === "Route not found") return STAGE_COLUMNS;
+      throw error;
+    }
+  },
+
+  // columns in board order (id = an existing column); moveTo: removed column id -> existing id or "new:<index>"
+  async saveColumns(projectId: string, columns: { id?: string; name: string; stage: TaskStatus }[], moveTo: Record<string, string> = {}) {
+    const data = await request<{ columns: RawColumn[]; moved: number }>(`/projects/${projectId}/columns`, {
+      method: "PUT",
+      body: JSON.stringify({ columns: columns.map((c) => ({ ...(c.id && !isStandIn(c.id) ? { id: c.id } : {}), name: c.name, stage: toApiTaskStatus(c.stage) })), moveTo })
+    });
+    return { columns: data.columns.map(mapColumn), moved: data.moved };
+  },
+
+  async getRules(projectId: string) {
+    return request<ProjectRule[]>(`/projects/${projectId}/rules`);
+  },
+
+  async saveRule(projectId: string, rule: Omit<ProjectRule, "id" | "projectId" | "runCount" | "lastRunAt">, ruleId?: string) {
+    return request<ProjectRule>(ruleId ? `/projects/${projectId}/rules/${ruleId}` : `/projects/${projectId}/rules`, {
+      method: ruleId ? "PUT" : "POST",
+      body: JSON.stringify(rule)
+    });
+  },
+
+  async setRuleEnabled(projectId: string, ruleId: string, enabled: boolean) {
+    return request<ProjectRule>(`/projects/${projectId}/rules/${ruleId}`, { method: "PATCH", body: JSON.stringify({ enabled }) });
+  },
+
+  async deleteRule(projectId: string, ruleId: string) {
+    return request(`/projects/${projectId}/rules/${ruleId}`, { method: "DELETE" });
   },
 
   async getComprehensiveReport(filters: { days?: number; projectId?: string; memberId?: string } = {}) {
@@ -760,6 +834,7 @@ export const api = {
     description: string;
     priority: TaskPriority;
     status: TaskStatus;
+    columnId?: string | null;
     dueDate: string;
     projectId: string;
     assigneeIds?: string[];
@@ -771,6 +846,7 @@ export const api = {
         description: payload.description,
         priority: toApiTaskPriority(payload.priority),
         status: toApiTaskStatus(payload.status),
+        ...(isStandIn(payload.columnId) ? {} : { columnId: payload.columnId }),
         dueDate: payload.dueDate ? new Date(payload.dueDate).toISOString() : undefined,
         projectId: payload.projectId,
         assigneeIds: payload.assigneeIds || [],
@@ -789,6 +865,8 @@ export const api = {
         description: payload.description,
         priority: payload.priority ? toApiTaskPriority(payload.priority) : undefined,
         status: payload.status ? toApiTaskStatus(payload.status) : undefined,
+        // A real column wins on the server; stand-in columns (older server) send only the status
+        ...(isStandIn(payload.columnId) ? {} : { columnId: payload.columnId }),
         dueDate: payload.dueDate ? new Date(payload.dueDate).toISOString() : undefined,
         projectId: payload.projectId,
         assigneeIds: payload.assigneeIds,
@@ -828,8 +906,8 @@ export const api = {
     return request<{ watching: boolean }>(`/tasks/${taskId}/watch`, { method: watch ? "POST" : "DELETE" });
   },
 
-  async reorderTasks(projectId: string, status: TaskStatus, orderedIds: string[]) {
-    return request(`/tasks/reorder`, { method: "POST", body: JSON.stringify({ projectId, status: toApiTaskStatus(status), orderedIds }) });
+  async reorderTasks(projectId: string, status: TaskStatus, orderedIds: string[], columnId?: string) {
+    return request(`/tasks/reorder`, { method: "POST", body: JSON.stringify({ projectId, status: toApiTaskStatus(status), orderedIds, ...(isStandIn(columnId) ? {} : { columnId }) }) });
   },
 
   // The next deadlines a repeat rule gives from a deadline (yyyy-MM-dd); the server owns the date maths

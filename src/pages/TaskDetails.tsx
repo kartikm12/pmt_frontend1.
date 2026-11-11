@@ -2,11 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Calendar, Edit2, Trash2, Eye, EyeOff, Repeat, Lock, MoreHorizontal, FolderKanban, CheckSquare, Link as LinkIcon, Paperclip, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
-import type { Activity, Project, Task, TaskLink, User, TaskPriority, TaskStatus } from "@/lib/api-types";
+import { api, columnOf, STAGE_COLUMNS } from "@/lib/api";
+import type { Activity, BoardColumn, Project, Task, TaskLink, User, TaskPriority, TaskStatus } from "@/lib/api-types";
 import { differenceInCalendarDays } from "date-fns";
 
-const STATUSES: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
 const PRIORITY_PILL: Record<string, string> = {
   Urgent: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   High: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
@@ -71,6 +70,7 @@ export function TaskDetails() {
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>("To Do");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [newTaskProjectId, setNewTaskProjectId] = useState("");
+  const [newTaskColumnId, setNewTaskColumnId] = useState<string | null>(null);
   const [newTaskAssigneeIds, setNewTaskAssigneeIds] = useState<string[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [formError, setFormError] = useState("");
@@ -80,7 +80,8 @@ export function TaskDetails() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [fileCount, setFileCount] = useState<number | null>(null);
   const [statusBusy, setStatusBusy] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null);
+  // A move to a column, waiting for "Move anyway" because the task is blocked
+  const [pendingStatus, setPendingStatus] = useState<BoardColumn | null>(null);
 
   const filteredSuggestions = useMemo(() => {
     // De-duplicate users by name for the suggestions list
@@ -288,16 +289,21 @@ export function TaskDetails() {
     }
   };
 
-  const saveStatus = async (status: TaskStatus) => {
-    if (!id || !task || statusBusy || status === task.status) return;
+  // The project's own columns (the usual four for an older server)
+  const boardColumns = task?.columns?.length ? task.columns : STAGE_COLUMNS;
+  const currentColumn = task ? columnOf(boardColumns, task) : undefined;
+
+  // Moving the task to a column (its status becomes that column's stage); rules may change it further
+  const saveStatus = async (col: BoardColumn) => {
+    if (!id || !task || statusBusy || col.id === currentColumn?.id) return;
     setStatusBusy(true);
     const before = task;
-    setTask({ ...task, status });
+    setTask({ ...task, status: col.stage, columnId: col.id, columnName: col.name });
     try {
-      const updated = await api.updateTask(id, { status });
+      const updated = await api.updateTask(id, { status: col.stage, columnId: col.id });
       setTask(updated);
       void api.getActivity(`?taskId=${id}`).then(setActivity).catch(() => undefined);
-      toast.success(`Moved to ${status}`);
+      toast.success(`Moved to ${col.name}`);
     } catch (error) {
       setTask(before);
       toast.error(error instanceof Error ? error.message : "Couldn't change the status");
@@ -306,10 +312,12 @@ export function TaskDetails() {
     }
   };
 
-  const changeStatus = (status: TaskStatus) => {
+  const changeStatus = (columnId: string) => {
     if (!task) return;
-    if (status !== "To Do" && status !== task.status && openBlockers(task).length) setPendingStatus(status);
-    else void saveStatus(status);
+    const col = boardColumns.find((c) => c.id === columnId);
+    if (!col) return;
+    if (col.stage !== "To Do" && col.id !== currentColumn?.id && openBlockers(task).length) setPendingStatus(col);
+    else void saveStatus(col);
   };
 
   // Same type/size rules as the Files tab; a file already waiting (same name and size) isn't added twice; at most 5
@@ -424,6 +432,7 @@ export function TaskDetails() {
     setNewTaskDescription(task.description);
     setNewTaskPriority(task.priority);
     setNewTaskStatus(task.status);
+    setNewTaskColumnId(currentColumn?.id ?? null);
     setNewTaskDueDate(safeFormat(task.dueDate, "yyyy-MM-dd"));
     setNewTaskProjectId(task.projectId);
     setNewTaskAssigneeIds(task.assigneeIds || []);
@@ -468,10 +477,11 @@ export function TaskDetails() {
         description: newTaskDescription,
         priority: newTaskPriority,
         status: newTaskStatus,
+        columnId: newTaskColumnId,
         dueDate: new Date(newTaskDueDate).toISOString(),
         projectId: newTaskProjectId,
         assigneeIds: newTaskAssigneeIds
-      } : { status: newTaskStatus });
+      } : { status: newTaskStatus, columnId: newTaskColumnId });
 
       setTask(updated);
       setIsModalOpen(false);
@@ -525,13 +535,13 @@ export function TaskDetails() {
                 variant="pill"
                 ariaLabel="Status"
                 searchPlaceholder="Search statuses..."
-                options={STATUSES.map((st) => ({ id: st, name: st }))}
-                selectedId={task.status}
+                options={boardColumns.map((c) => ({ id: c.id, name: c.name }))}
+                selectedId={currentColumn?.id ?? ""}
                 disabled={statusBusy}
-                onChange={(st) => changeStatus(st as TaskStatus)}
+                onChange={changeStatus}
               />
             ) : (
-              <span className="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200" aria-label="Status">{task.status}</span>
+              <span className="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200" aria-label="Status">{currentColumn?.name ?? task.status}</span>
             )}
             <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${PRIORITY_PILL[task.priority] ?? PRIORITY_PILL.Low}`}>{task.priority}</span>
             {task.dueDate && (
@@ -799,7 +809,7 @@ export function TaskDetails() {
                         {/* Wraps on a narrow phone instead of squeezing the Edit/Delete buttons */}
                         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
                           <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-colors">
-                            {actor?.name ?? "System"}
+                            {actor?.name ?? (entry.details?.startsWith("By rule") ? "Rule" : "System")}
                           </span>
                           <div className="flex items-center gap-2 ml-auto">
                             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-zinc-50 dark:bg-zinc-900/50 px-2 py-0.5 rounded-full border border-zinc-100 dark:border-zinc-800">
@@ -960,7 +970,7 @@ export function TaskDetails() {
       <ConfirmDialog
         open={!!pendingStatus}
         title="This task is blocked"
-        message={pendingStatus ? `It's waiting on ${openBlockers(task).map((b) => `"${b.title}"`).join(", ")}. Move it to ${pendingStatus} anyway?` : undefined}
+        message={pendingStatus ? `It's waiting on ${openBlockers(task).map((b) => `"${b.title}"`).join(", ")}. Move it to ${pendingStatus.name} anyway?` : undefined}
         confirmLabel="Move anyway"
         onConfirm={() => {
           const st = pendingStatus;
@@ -1001,6 +1011,8 @@ export function TaskDetails() {
         setNewTaskPriority={setNewTaskPriority}
         newTaskStatus={newTaskStatus}
         setNewTaskStatus={setNewTaskStatus}
+        newTaskColumnId={newTaskColumnId}
+        setNewTaskColumnId={setNewTaskColumnId}
         newTaskAssigneeIds={newTaskAssigneeIds}
         setNewTaskAssigneeIds={setNewTaskAssigneeIds}
         newTaskProjectId={newTaskProjectId}

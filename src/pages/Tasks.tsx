@@ -42,6 +42,7 @@ export function Tasks() {
   const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>("Medium");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>("To Do");
+  const [newTaskColumnId, setNewTaskColumnId] = useState<string | null>(null);
   const [newTaskAssigneeIds, setNewTaskAssigneeIds] = useState<string[]>([]);
   const [newTaskProjectId, setNewTaskProjectId] = useState("");
   const [formError, setFormError] = useState("");
@@ -124,6 +125,7 @@ export function Tasks() {
       setNewTaskPriority(task.priority);
       setNewTaskDueDate(safeFormat(task.dueDate, "yyyy-MM-dd"));
       setNewTaskStatus(task.status);
+      setNewTaskColumnId(task.columnId ?? null);
       setNewTaskAssigneeIds(task.assigneeIds || []);
       setNewTaskProjectId(task.projectId);
       setPlanning(planningFromTask(task));
@@ -134,6 +136,7 @@ export function Tasks() {
       setNewTaskPriority("Medium");
       setNewTaskDueDate(safeFormat(new Date().toISOString(), "yyyy-MM-dd"));
       setNewTaskStatus("To Do");
+      setNewTaskColumnId(null);
       setNewTaskAssigneeIds([]);
       setNewTaskProjectId("");
       setPlanning(emptyPlanning);
@@ -168,11 +171,12 @@ export function Tasks() {
               description: newTaskDescription,
               priority: newTaskPriority,
               status: newTaskStatus,
+              columnId: newTaskColumnId,
               dueDate: new Date(newTaskDueDate).toISOString(),
               projectId: newTaskProjectId,
               assigneeIds: newTaskAssigneeIds
             }
-          : { status: newTaskStatus };
+          : { status: newTaskStatus, columnId: newTaskColumnId };
         const updated = await api.updateTask(editingTask.id, payload);
         setAllTasks((prev) => prev.map((task) => (task.id === updated.id ? updated : task)));
         toast.success(managesEdited ? "Task updated successfully!" : "Task status updated!");
@@ -183,6 +187,7 @@ export function Tasks() {
           description: newTaskDescription,
           priority: newTaskPriority,
           status: newTaskStatus,
+          columnId: newTaskColumnId,
           dueDate: new Date(newTaskDueDate).toISOString(),
           assigneeIds: newTaskAssigneeIds,
           projectId: newTaskProjectId
@@ -508,7 +513,7 @@ export function Tasks() {
                   <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0 text-left">
                     <span className={`block font-semibold break-words ${task.status === "Completed" ? "text-emerald-600 dark:text-emerald-400" : late ? "text-red-600 dark:text-red-400" : "text-zinc-900 dark:text-zinc-100"}`}>{task.title}</span>
                     <span className="block text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      {task.project?.name || projects.find((p) => p.id === task.projectId)?.name} · {task.status} · {task.priority}
+                      {task.project?.name || projects.find((p) => p.id === task.projectId)?.name} · {task.columnName ?? task.status} · {task.priority}
                     </span>
                     <span className={`flex items-center gap-1 text-xs mt-1 ${late ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>
                       <Clock className="w-3.5 h-3.5" /> {safeFormat(task.dueDate, "MMM d, yyyy")}
@@ -589,7 +594,7 @@ export function Tasks() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{task.project?.name || project?.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{task.status}</td>
+                      <td className="px-6 py-4 whitespace-nowrap" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }} title={task.columnName && task.columnName !== task.status ? `Counts as ${task.status}` : undefined}>{task.columnName ?? task.status}</td>
                       <td className="px-6 py-4 whitespace-nowrap" style={{ fontFamily: 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif' }}>{task.priority}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -695,6 +700,8 @@ export function Tasks() {
         setNewTaskPriority={setNewTaskPriority}
         newTaskStatus={newTaskStatus}
         setNewTaskStatus={setNewTaskStatus}
+        newTaskColumnId={newTaskColumnId}
+        setNewTaskColumnId={setNewTaskColumnId}
         newTaskAssigneeIds={newTaskAssigneeIds}
         setNewTaskAssigneeIds={setNewTaskAssigneeIds}
         newTaskProjectId={newTaskProjectId}

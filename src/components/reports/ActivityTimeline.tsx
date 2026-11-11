@@ -39,7 +39,7 @@ export function ActivityTimeline({ data, subtitle = "Latest actions across all p
                   <span className={`absolute -left-[5px] top-1.5 w-2 h-2 rounded-full ring-4 ring-white dark:ring-[#0f172a] ${dot}`} />
                   <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 mb-1">
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {item.user?.fullName || "System"}
+                      {item.user?.fullName || (String(item.description ?? "").startsWith("By rule") ? "Rule" : "System")}
                     </p>
                     <time className="text-xs font-medium text-slate-400 whitespace-nowrap">
                       {item.createdAt ? formatDistanceToNow(parseISO(item.createdAt), { addSuffix: true }) : ''}
