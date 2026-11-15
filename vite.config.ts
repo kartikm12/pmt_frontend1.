@@ -25,6 +25,9 @@ export default defineConfig(({mode}) => {
       allowedHosts: true,
     },
     build: {
+      // Built files go in /static/, not Vite's default /assets/: the app has its own /assets pages (the asset
+      // register, /assets/<id> opened from QR labels and emails), and Vercel must hand those to the app
+      assetsDir: 'static',
       rollupOptions: {
         output: {
           // Big libraries in their own files: they download in parallel and stay cached across deploys
