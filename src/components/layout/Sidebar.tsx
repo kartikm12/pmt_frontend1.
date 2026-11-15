@@ -11,7 +11,8 @@ import {
   Trophy,
   CalendarDays,
   Trash2,
-  ShieldCheck
+  ShieldCheck,
+  Laptop
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { isManager } from "@/utils/roleUtils";
@@ -26,6 +27,7 @@ const navItems = [
   { icon: BarChart3, label: "Reports", path: "/reports" },
   { icon: Trophy, label: "Leaderboard", path: "/leaderboard" },
   { icon: Users, label: "Team", path: "/team" },
+  { icon: Laptop, label: "Assets", path: "/assets" },
   { icon: Trash2, label: "Recently deleted", path: "/trash", managersOnly: true },
   { icon: ShieldCheck, label: "Audit log", path: "/audit", adminOnly: true },
   { icon: Settings, label: "Settings", path: "/settings" },

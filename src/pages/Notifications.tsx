@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, Trash2, Calendar, Layout, CheckCircle2, AlertCircle, Info, Mail } from "lucide-react";
+import { Bell, Check, Trash2, Calendar, Layout, CheckCircle2, AlertCircle, Info, Mail, Package } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -76,6 +76,15 @@ export function Notifications() {
         return <Mail className="w-5 h-5 text-blue-500" />;
       case "PROJECT_UPDATED":
         return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
+      case "ASSET_ASSIGNED":
+      case "ASSET_RETURN_REQUESTED":
+      case "ASSET_COLLECTION_REQUIRED":
+        return <Package className="w-5 h-5 text-indigo-500" />;
+      case "ASSET_RECEIPT_CONFIRMED":
+        return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
+      case "ASSET_PROBLEM_REPORTED":
+      case "ASSET_WARRANTY_EXPIRING":
+        return <AlertCircle className="w-5 h-5 text-amber-500" />;
       default:
         return <Info className="w-5 h-5 text-slate-500" />;
     }

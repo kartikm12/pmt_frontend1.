@@ -28,6 +28,9 @@ export interface User {
   // Only filled for the signed-in person (from /auth/me)
   passwordChangedAt?: string | null;
   projects?: Project[];
+  reportsToId?: string | null;
+  reportsTo?: { id: string; fullName: string; name?: string; email?: string } | null;
+  assignedAssetsCount?: number;
 }
 
 // What the signed-in person may do in one project (from the server; company-wide managers are "manager" everywhere)
@@ -187,19 +190,147 @@ export type NotificationType =
   | "PROJECT_UPDATED"
   | "TEAM_INVITE"
   | "COMMENT_MENTION"
-  | "SYSTEM";
+  | "SYSTEM"
+  | "ASSET_ASSIGNED"
+  | "ASSET_RECEIPT_CONFIRMED"
+  | "ASSET_PROBLEM_REPORTED"
+  | "ASSET_WARRANTY_EXPIRING"
+  | "ASSET_RETURN_REQUESTED"
+  | "ASSET_COLLECTION_REQUIRED";
 
 export interface Notification {
   id: string;
   userId: string;
   projectId?: string;
   taskId?: string;
+  assetId?: string;
   type: NotificationType;
   title: string;
   message: string;
+  body?: string;
   isRead: boolean;
   readAt?: string;
   createdAt: string;
   project?: { id: string; name: string; deletedAt?: string | null };
   task?: { id: string; title: string; deletedAt?: string | null };
+  asset?: { id: string; assetTag: string; name: string; status: string };
 }
+
+export type AssetStatus = "IN_STOCK" | "ASSIGNED" | "IN_REPAIR" | "LOST" | "RETIRED";
+export type AssetCondition = "NEW" | "GOOD" | "FAIR" | "DAMAGED";
+export type AssetAssignmentReceiptStatus = "PENDING" | "CONFIRMED";
+export type AssetAssignmentCollectionStatus = "NONE" | "PENDING_COLLECTION" | "COLLECTED";
+export type AssetEventType =
+  | "CREATED"
+  | "UPDATED"
+  | "ASSIGNED"
+  | "RECEIPT_CONFIRMED"
+  | "RETURNED"
+  | "MARKED_FOR_REPAIR"
+  | "REPAIR_COMPLETED"
+  | "MARKED_LOST"
+  | "RETIRED"
+  | "DELETED"
+  | "RESTORED"
+  | "PROBLEM_REPORTED"
+  | "COLLECTION_REQUESTED";
+
+export interface AssetCategory {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  isCustom: boolean;
+  _count?: { assets: number };
+}
+
+export interface AssetFile {
+  id: string;
+  assetId: string;
+  name: string;
+  url: string;
+  downloadUrl?: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedById: string;
+  createdAt: string;
+}
+
+export interface AssetAssignment {
+  id: string;
+  assetId: string;
+  userId: string;
+  projectId?: string | null;
+  assignedById: string;
+  assignedAt: string;
+  assignmentCondition: AssetCondition;
+  notes?: string | null;
+  receiptStatus: AssetAssignmentReceiptStatus;
+  receiptConfirmedAt?: string | null;
+  returnedAt?: string | null;
+  returnCondition?: AssetCondition | null;
+  returnRemarks?: string | null;
+  returnDisposition?: string | null;
+  collectionStatus: AssetAssignmentCollectionStatus;
+  collectionNotes?: string | null;
+  isCurrent: boolean;
+  user?: User;
+}
+
+export interface AssetEvent {
+  id: string;
+  assetId: string;
+  eventType: AssetEventType;
+  performedById?: string | null;
+  title: string;
+  description: string;
+  metadata?: any;
+  createdAt: string;
+  performedBy?: {
+    id: string;
+    fullName: string;
+    avatarUrl?: string | null;
+    role: string;
+  } | null;
+}
+
+export interface Asset {
+  id: string;
+  assetTag: string;
+  name: string;
+  categoryId: string;
+  category?: AssetCategory;
+  brand?: string | null;
+  model?: string | null;
+  serialNumber?: string | null;
+  specifications?: string | null;
+  condition: AssetCondition;
+  status: AssetStatus;
+  location?: string | null;
+  purchaseDate?: string | null;
+  purchaseCost?: number | null;
+  vendorName?: string | null;
+  warrantyStartDate?: string | null;
+  warrantyEndDate?: string | null;
+  currentHolderId?: string | null;
+  currentHolder?: User | null;
+  projectId?: string | null;
+  project?: Project | null;
+  createdById: string;
+  createdBy?: { id: string; fullName: string };
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  activeAssignment?: AssetAssignment | null;
+  files?: AssetFile[];
+}
+
+export interface AssetSummary {
+  totalAssets: number;
+  assigned: number;
+  inStock: number;
+  inRepair: number;
+  lost: number;
+  retired: number;
+}
+

@@ -7,6 +7,9 @@ export function notificationTarget(n: Notification): { to?: string; gone?: strin
   }
   if (n.taskId) return { to: `/tasks/${n.taskId}` };
   if (n.projectId) return { to: `/projects/${n.projectId}` };
+  // Asset notices open that item's page (the server says "not found" if it's no longer yours to see)
+  if (n.assetId) return { to: `/assets/${n.assetId}` };
+  if (n.type?.startsWith("ASSET_")) return { to: "/assets" };
   if (n.title === "Sign-up waiting for approval") return { to: "/team" };
   return {};
 }

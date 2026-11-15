@@ -10,7 +10,7 @@ import { Login } from "./pages/Login";
 import { ForgotPassword, ResetPassword } from "./pages/PasswordReset";
 import { Pages } from "./pages/lazyPages";
 
-const { Dashboard, Projects, ProjectDetails, Tasks, TaskDetails, Reports, Leaderboard, Team, Settings, Notifications, Calendar, Trash, AuditLog } = Pages;
+const { Dashboard, Projects, ProjectDetails, Tasks, TaskDetails, Reports, Leaderboard, Team, Settings, Notifications, Calendar, Trash, AuditLog, Assets, AssetDetails } = Pages;
 import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NavigationProvider } from "./context/NavigationContext";
@@ -63,6 +63,8 @@ function AppRoutes() {
         <Route path="calendar" element={<Calendar />} />
         <Route path="trash" element={<Trash />} />
         <Route path="audit" element={<AuditLog />} />
+        <Route path="assets" element={<Assets />} />
+        <Route path="assets/:id" element={<AssetDetails />} />
         {/* Unknown addresses used to render an empty page */}
         <Route
           path="*"

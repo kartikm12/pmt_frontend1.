@@ -15,13 +15,21 @@ import type {
   TaskLink,
   TimeEntry,
   BoardColumn,
-  ProjectRule
+  ProjectRule,
+  Asset,
+  AssetCategory,
+  AssetEvent,
+  AssetFile,
+  AssetSummary
 } from "./api-types";
 
 const getApiBaseUrl = () => {
   // Accept the backend address with or without "/api" (and a trailing slash); every route lives under /api
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace(/\/+$/, "").replace(/(\/api)?$/, "/api");
   let hostname = window.location.hostname;
+  if (hostname === '0.0.0.0') {
+    return 'http://localhost:4000/api';
+  }
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return `http://${hostname}:4000/api`;
   }
@@ -54,6 +62,9 @@ export type RawUser = {
   status?: "ACTIVE" | "INVITED" | "OFFLINE" | "SUSPENDED";
   emailNotifications?: boolean;
   passwordChangedAt?: string | null;
+  reportsToId?: string | null;
+  reportsTo?: { id: string; fullName: string; email?: string } | null;
+  _count?: { assignedTasks?: number; heldAssets?: number };
 };
 
 export type RawProject = {
@@ -188,6 +199,16 @@ export function mapUser(raw: RawUser): User {
     bio: raw.bio ?? undefined,
     phone: raw.phone ?? undefined,
     title: raw.title ?? undefined,
+    reportsToId: raw.reportsToId ?? undefined,
+    reportsTo: raw.reportsTo
+      ? {
+          id: raw.reportsTo.id,
+          fullName: raw.reportsTo.fullName,
+          name: raw.reportsTo.fullName,
+          email: raw.reportsTo.email
+        }
+      : undefined,
+    assignedAssetsCount: raw._count?.heldAssets ?? 0,
     status:
       raw.status === "ACTIVE"
         ? "Active"
@@ -977,6 +998,7 @@ export const api = {
     role?: User["role"];
     title?: string;
     projectId?: string;
+    reportsToId?: string;
   }) {
     return request("/team", {
       method: "POST",
@@ -986,7 +1008,8 @@ export const api = {
         password: payload.password,
         role: payload.role ? REVERSE_ROLE_MAP[payload.role] : undefined,
         title: payload.title,
-        projectId: payload.projectId
+        projectId: payload.projectId,
+        reportsToId: payload.reportsToId || undefined
       })
     });
   },
@@ -1005,6 +1028,7 @@ export const api = {
       title?: string;
       status?: "Active" | "Suspended";
       projectId?: string;
+      reportsToId?: string | null;
     }
   ) {
     const roleMap: Record<User["role"], RawUser["role"]> = {
@@ -1026,7 +1050,8 @@ export const api = {
         role: payload.role ? roleMap[payload.role] : undefined,
         title: payload.title,
         status: payload.status ? payload.status.toUpperCase() : undefined,
-        projectId: payload.projectId
+        projectId: payload.projectId,
+        reportsToId: payload.reportsToId
       })
     });
   },
@@ -1122,5 +1147,169 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  // Asset Management API
+  async getAssets(params: Record<string, any> = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") {
+        query.append(k, String(v));
+      }
+    });
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<{
+      summary: AssetSummary;
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+      items: Asset[];
+    }>(`/assets${qs}`);
+  },
+
+  async getAssetSummary(): Promise<AssetSummary> {
+    const res = await this.getAssets({ limit: 1 });
+    return res.summary;
+  },
+
+  async getAsset(id: string): Promise<Asset> {
+    return request<Asset>(`/assets/${id}`);
+  },
+
+  async createAsset(payload: any): Promise<Asset> {
+    return request<Asset>("/assets", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async updateAsset(id: string, payload: any): Promise<Asset> {
+    return request<Asset>(`/assets/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async deleteAsset(id: string): Promise<{ success: boolean }> {
+    return request<{ success: boolean }>(`/assets/${id}`, {
+      method: "DELETE"
+    });
+  },
+
+  async restoreAsset(id: string): Promise<Asset> {
+    return request<Asset>(`/assets/${id}/restore`, {
+      method: "POST"
+    });
+  },
+
+  async assignAsset(id: string, payload: { employeeId: string; projectId?: string; assignmentCondition?: string; notes?: string }): Promise<Asset> {
+    return request<Asset>(`/assets/${id}/assign`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async confirmAssetReceipt(id: string): Promise<Asset> {
+    return request<Asset>(`/assets/${id}/confirm-receipt`, {
+      method: "POST"
+    });
+  },
+
+  async returnAsset(id: string, payload: { returnDate?: string; returnCondition: string; returnRemarks?: string; returnDisposition: string }): Promise<Asset> {
+    return request<Asset>(`/assets/${id}/return`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async markAssetRepair(id: string, payload: { problemDescription: string; remarks?: string }): Promise<Asset> {
+    return request<Asset>(`/assets/${id}/repair`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async completeAssetRepair(id: string, payload: { condition: string; disposition: string; employeeId?: string; projectId?: string; remarks?: string }): Promise<Asset> {
+    return request<Asset>(`/assets/${id}/complete-repair`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async markAssetLost(id: string, remarks?: string): Promise<Asset> {
+    return request<Asset>(`/assets/${id}/lost`, {
+      method: "POST",
+      body: JSON.stringify({ remarks })
+    });
+  },
+
+  async retireAsset(id: string, remarks?: string): Promise<Asset> {
+    return request<Asset>(`/assets/${id}/retire`, {
+      method: "POST",
+      body: JSON.stringify({ remarks })
+    });
+  },
+
+  async reportAssetProblem(id: string, payload: { problemCategory: string; description: string; photoUrl?: string }): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>(`/assets/${id}/report-problem`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async getMyAssets(): Promise<Asset[]> {
+    return request<Asset[]>("/assets/my-assets");
+  },
+
+  async getTeamAssets(): Promise<{ summary: { totalTeamAssets: number; assigned: number; inRepair: number; pendingCollection: number }; items: Asset[] }> {
+    return request<{ summary: any; items: Asset[] }>("/assets/team-assets");
+  },
+
+  async getRecentlyDeletedAssets(): Promise<Asset[]> {
+    return request<Asset[]>("/assets/recently-deleted");
+  },
+
+  async getAssetHistory(id: string): Promise<AssetEvent[]> {
+    return request<AssetEvent[]>(`/assets/${id}/history`);
+  },
+
+  async uploadAssetPhoto(id: string, file: File): Promise<AssetFile> {
+    const formData = new FormData();
+    formData.append("photo", file);
+
+    const token = getStoredToken();
+    const response = await fetch(`${API_BASE_URL}/assets/${id}/photos`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || "Failed to upload asset photograph");
+    }
+
+    return response.json();
+  },
+
+  async deleteAssetPhoto(assetId: string, fileId: string): Promise<{ success: boolean }> {
+    return request<{ success: boolean }>(`/assets/${assetId}/photos/${fileId}`, {
+      method: "DELETE"
+    });
+  },
+
+  async getAssetCategories(): Promise<AssetCategory[]> {
+    return request<AssetCategory[]>("/assets/categories");
+  },
+
+  async createAssetCategory(payload: { name: string; code: string; description?: string }): Promise<AssetCategory> {
+    return request<AssetCategory>("/assets/categories", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  async getAssetNotifications(): Promise<any[]> {
+    return request<any[]>("/assets/notifications");
   }
 };

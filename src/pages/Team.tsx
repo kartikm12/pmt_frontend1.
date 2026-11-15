@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Mail, MoreVertical, Plus, Search, Users, X, Briefcase, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, MoreVertical, Plus, Search, Users, X, Briefcase, Lock, Eye, EyeOff, Package } from "lucide-react";
 import { toast } from "sonner";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
@@ -43,6 +43,7 @@ export function Team() {
   const [inviteTitle, setInviteTitle] = useState("");
   const [invitePassword, setInvitePassword] = useState("");
   const [inviteProjectId, setInviteProjectId] = useState("");
+  const [inviteReportsToId, setInviteReportsToId] = useState("");
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [showInvitePassword, setShowInvitePassword] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -76,7 +77,8 @@ export function Team() {
         fullName: inviteName,
         role: inviteRole,
         title: inviteTitle,
-        projectId: inviteProjectId || undefined
+        projectId: inviteProjectId || undefined,
+        ...(isAdmin ? { reportsToId: inviteReportsToId || null } : {})
       });
 
       const teamData = (await api.getTeam()) as User[];
@@ -138,7 +140,8 @@ export function Team() {
         password: invitePassword,
         role: inviteRole,
         title: inviteTitle,
-        projectId: inviteProjectId || undefined
+        projectId: inviteProjectId || undefined,
+        ...(isAdmin && inviteReportsToId ? { reportsToId: inviteReportsToId } : {})
       });
 
       const teamData = (await api.getTeam()) as User[];
@@ -151,6 +154,7 @@ export function Team() {
       setInviteTitle("");
       setInvitePassword("");
       setInviteProjectId("");
+      setInviteReportsToId("");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add team member");
     }
@@ -267,6 +271,23 @@ export function Team() {
                       placeholder="Search and select project..."
                     />
                   </Field>
+                  {isAdmin && (
+                    <Field label="Reports to">
+                      <SingleSelectDropdown
+                        ariaLabel="Reports to"
+                        options={[
+                          { id: "", name: "Nobody" },
+                          ...teamMembers
+                            .filter((m) => m.status !== "Suspended" && (!memberToEdit || m.id !== memberToEdit.id))
+                            .map((m) => ({ id: m.id, name: `${m.name} (${m.role})` }))
+                        ]}
+                        selectedId={inviteReportsToId}
+                        onChange={setInviteReportsToId}
+                        searchPlaceholder="Search people..."
+                        placeholder="Who is their manager?"
+                      />
+                    </Field>
+                  )}
                 </div>
                 <div className="pt-10 flex flex-col sm:flex-row gap-4 sticky bottom-0 bg-white dark:bg-slate-900 mt-2">
                   <button type="button" onClick={() => setIsInviteModalOpen(false)} className="flex-1 px-6 py-4 btn-secondary text-sm font-bold uppercase tracking-widest">
@@ -329,6 +350,23 @@ export function Team() {
                       placeholder="Search and select project..."
                     />
                   </Field>
+                  {isAdmin && (
+                    <Field label="Reports to">
+                      <SingleSelectDropdown
+                        ariaLabel="Reports to"
+                        options={[
+                          { id: "", name: "Nobody" },
+                          ...teamMembers
+                            .filter((m) => m.status !== "Suspended" && (!memberToEdit || m.id !== memberToEdit.id))
+                            .map((m) => ({ id: m.id, name: `${m.name} (${m.role})` }))
+                        ]}
+                        selectedId={inviteReportsToId}
+                        onChange={setInviteReportsToId}
+                        searchPlaceholder="Search people..."
+                        placeholder="Who is their manager?"
+                      />
+                    </Field>
+                  )}
                 </div>
                 <div className="pt-10 flex flex-col sm:flex-row gap-4 sticky bottom-0 bg-white dark:bg-slate-900 mt-2">
                   <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-6 py-4 btn-secondary text-sm font-bold uppercase tracking-widest">
@@ -343,6 +381,15 @@ export function Team() {
           </div>,
           document.body
         )}
+
+      {isAdmin && (() => {
+        const noManager = teamMembers.filter((m) => !m.reportsToId && m.role !== "Admin" && m.status !== "Suspended");
+        return noManager.length > 0 ? (
+          <div data-no-manager className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+            {noManager.length === 1 ? "1 person doesn't" : `${noManager.length} people don't`} report to anyone yet. Until you set it (Edit on their card), only Admins see their assets.
+          </div>
+        ) : null;
+      })()}
 
       {isManager(currentUser?.role) && (
         <PendingSignups roleOptions={ROLE_OPTIONS.filter((role) => isAdmin || role !== "Admin")} onApproved={() => void loadTeam()} />
@@ -426,8 +473,25 @@ export function Team() {
                                 Suspended
                               </span>
                             )}
+                            {typeof user.assignedAssetsCount === "number" && user.assignedAssetsCount > 0 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800" title={`${user.assignedAssetsCount} assigned assets`}>
+                                <Package className="w-3 h-3" />
+                                {user.assignedAssetsCount} {user.assignedAssetsCount === 1 ? "Asset" : "Assets"}
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{user.title ?? user.status}</p>
+                          {user.reportsTo && (
+                            <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1 mt-0.5">
+                              <span>Reports to:</span>
+                              <span className="font-semibold">{user.reportsTo.fullName || (user.reportsTo as any).name}</span>
+                              {currentUser && user.reportsTo.id === currentUser.id && (
+                                <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                                  Reports to you
+                                </span>
+                              )}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -482,6 +546,7 @@ export function Team() {
                                 setInviteRole(user.role);
                                 setInviteTitle(user.title || "");
                                 setInviteProjectId(user.projects[0]?.id || "");
+                                setInviteReportsToId(user.reportsToId || "");
                                 setIsEditModalOpen(true);
                                 setActiveMenu(null);
                               }}
