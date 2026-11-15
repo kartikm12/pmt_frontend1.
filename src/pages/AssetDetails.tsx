@@ -146,11 +146,11 @@ export function AssetDetails() {
       <div className="card p-5 sm:p-6">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white" data-asset-title>{a.assetTag} · {a.name}</h1>
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white [overflow-wrap:anywhere]" data-asset-title>{a.assetTag} · {a.name}</h1>
               <StatusPill asset={a} />
             </div>
-            {meta.length > 0 && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5">{meta.join(" · ")}</p>}
+            {meta.length > 0 && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 [overflow-wrap:anywhere]">{meta.join(" · ")}</p>}
             <p className={cn("text-sm mt-1", w?.warn ? "text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400")}>
               {w ? `Warranty: ${w.text}` : "No warranty date"}
             </p>
@@ -194,13 +194,15 @@ export function AssetDetails() {
                     {` · condition ${CONDITION_LABEL[a.condition] ?? a.condition}`}
                   </p>
                 )}
-                {a.isHolder && asg?.receiptStatus === "PENDING" && (
-                  <button type="button" data-confirm-receipt onClick={() => void confirmReceipt()} disabled={confirming} className="btn-primary px-3 py-1.5 text-sm mt-3 inline-flex items-center gap-1.5">
+                {a.isHolder && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                {asg?.receiptStatus === "PENDING" && (
+                  <button type="button" data-confirm-receipt onClick={() => void confirmReceipt()} disabled={confirming} className="btn-primary px-3 py-1.5 text-sm inline-flex items-center gap-1.5">
                     {confirming ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Check className="w-4 h-4" aria-hidden="true" />} I received it
                   </button>
                 )}
-                {a.isHolder && (
-                  <button type="button" data-report-problem onClick={() => setDialog("report")} className="btn-secondary px-3 py-1.5 text-sm mt-3 ml-2">Report a problem</button>
+                <button type="button" data-report-problem onClick={() => setDialog("report")} className="btn-secondary px-3 py-1.5 text-sm">Report a problem</button>
+                  </div>
                 )}
               </>
             ) : (
@@ -211,11 +213,11 @@ export function AssetDetails() {
           <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4">
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Details</p>
             <dl className="text-sm grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
-              {describeItem(a) && <><dt className="text-slate-500 dark:text-slate-400">Model</dt><dd className="text-slate-800 dark:text-slate-100 truncate">{describeItem(a)}</dd></>}
-              {a.specifications && <><dt className="text-slate-500 dark:text-slate-400">Specs</dt><dd className="text-slate-800 dark:text-slate-100">{a.specifications}</dd></>}
-              {a.location && <><dt className="text-slate-500 dark:text-slate-400">Location</dt><dd className="text-slate-800 dark:text-slate-100">{a.location}</dd></>}
+              {describeItem(a) && <><dt className="text-slate-500 dark:text-slate-400">Model</dt><dd className="text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">{describeItem(a)}</dd></>}
+              {a.specifications && <><dt className="text-slate-500 dark:text-slate-400">Specs</dt><dd className="text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">{a.specifications}</dd></>}
+              {a.location && <><dt className="text-slate-500 dark:text-slate-400">Location</dt><dd className="text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">{a.location}</dd></>}
               {a.project && <><dt className="text-slate-500 dark:text-slate-400">For project</dt><dd><Link className="text-indigo-600 dark:text-indigo-400 hover:underline" to={`/projects/${a.project.id}`}>{a.project.name}</Link></dd></>}
-              <dt className="text-slate-500 dark:text-slate-400">Condition</dt><dd className="text-slate-800 dark:text-slate-100">{CONDITION_LABEL[a.condition] ?? a.condition}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">Condition</dt><dd className="text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">{CONDITION_LABEL[a.condition] ?? a.condition}</dd>
             </dl>
           </div>
         </div>

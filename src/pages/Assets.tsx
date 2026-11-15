@@ -69,11 +69,23 @@ function Register() {
   const [page, setPage] = useState(1);
   const [error, setError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [status, setStatus] = useState("");
-  const [warranty, setWarranty] = useState("");
+  // Filters live in the address, so Back from an item, a refresh or a shared link keeps them
+  const [params, setParams] = useSearchParams();
+  const search = params.get("q") ?? "";
+  const categoryId = params.get("category") ?? "";
+  const status = params.get("status") ?? "";
+  const warranty = params.get("warranty") ?? "";
+  const setFilter = (key: string, value: string) =>
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  const setCategoryId = (v: string) => setFilter("category", v);
+  const setStatus = (v: string) => setFilter("status", v);
+  const setWarranty = (v: string) => setFilter("warranty", v);
+  const [query, setQuery] = useState(search);
   const [categories, setCategories] = useState<AssetCategory[]>([]);
   const [people, setPeople] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -82,7 +94,9 @@ function Register() {
   const loadSeq = useRef(0);
 
   useEffect(() => {
-    const t = setTimeout(() => setSearch(query.trim()), 300);
+    const t = setTimeout(() => {
+      if (query.trim() !== search) setFilter("q", query.trim());
+    }, 300);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -116,10 +130,7 @@ function Register() {
   const filtersOn = !!(search || categoryId || status || warranty);
   const clearFilters = () => {
     setQuery("");
-    setSearch("");
-    setCategoryId("");
-    setStatus("");
-    setWarranty("");
+    setParams({}, { replace: true });
   };
 
   if (!items && !error) return <PageLoader />;
@@ -325,7 +336,7 @@ export function MyAssets({ embedded = false }: { embedded?: boolean }) {
               <div key={a.id} data-my-asset={a.assetTag} className={cn("card p-5 flex flex-col", pending && "border-amber-300 dark:border-amber-700")}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 dark:text-white">{a.name}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white [overflow-wrap:anywhere]">{a.name}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       {a.assetTag}
                       {since ? ` · since ${format(new Date(since), "d MMM yyyy")}` : ""}
@@ -333,7 +344,7 @@ export function MyAssets({ embedded = false }: { embedded?: boolean }) {
                   </div>
                   <StatusPill asset={a} />
                 </div>
-                {(describeItem(a) || a.specifications) && <p className="text-sm text-slate-600 dark:text-slate-300 mt-3">{[describeItem(a), a.specifications].filter(Boolean).join(" · ")}</p>}
+                {(describeItem(a) || a.specifications) && <p className="text-sm text-slate-600 dark:text-slate-300 mt-3 [overflow-wrap:anywhere] line-clamp-3">{[describeItem(a), a.specifications].filter(Boolean).join(" · ")}</p>}
                 {w && <p className={cn("text-xs mt-2", w.warn ? "text-amber-600 dark:text-amber-400" : "text-slate-500 dark:text-slate-400")}>Warranty: {w.text}</p>}
                 <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                   {pending && (
