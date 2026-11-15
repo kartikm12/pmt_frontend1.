@@ -27,7 +27,19 @@ const EVENT_LABEL: Record<string, string> = {
   MARKED_FOR_REPAIR: "Sent to repair", REPAIR_COMPLETED: "Repair done", MARKED_LOST: "Marked lost", RETIRED: "Retired",
   DELETED: "Deleted", RESTORED: "Restored", PROBLEM_REPORTED: "Problem reported", COLLECTION_REQUESTED: "To collect"
 };
-const eventDetail = (h: AssetEvent) => (h.eventType === "CREATED" ? "" : h.description);
+// "Changed" entries saved with the copied module's wording read plainly too
+const OLD_CHANGE_WORDING: Record<string, { label: string; strip: RegExp }> = {
+  "Photo Uploaded": { label: "Photo added", strip: /^Uploaded asset photograph:\s*/ },
+  "Photo Deleted": { label: "Photo removed", strip: /^Deleted asset photograph:\s*/ },
+  "Asset Details Updated": { label: "Details changed", strip: /^Asset details were modified$/ }
+};
+const eventLabel = (h: AssetEvent) =>
+  h.eventType === "UPDATED" ? OLD_CHANGE_WORDING[h.title]?.label ?? h.title : EVENT_LABEL[h.eventType] ?? h.title;
+const eventDetail = (h: AssetEvent) => {
+  if (h.eventType === "CREATED") return "";
+  const old = h.eventType === "UPDATED" ? OLD_CHANGE_WORDING[h.title] : undefined;
+  return old ? h.description.replace(old.strip, "") : h.description;
+};
 
 const money = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
@@ -275,7 +287,7 @@ export function AssetDetails() {
               <li key={h.id} className="flex gap-3 text-sm">
                 <span className="text-xs text-slate-400 dark:text-slate-500 w-24 shrink-0 pt-0.5" title={format(new Date(h.createdAt), "d MMM yyyy, h:mm a")}>{format(new Date(h.createdAt), "d MMM yyyy")}</span>
                 <span className="min-w-0 text-slate-700 dark:text-slate-200">
-                  <span className="font-medium">{h.eventType === "UPDATED" ? h.title : EVENT_LABEL[h.eventType] ?? h.title}</span>
+                  <span className="font-medium">{eventLabel(h)}</span>
                   {eventDetail(h) ? <span className="text-slate-500 dark:text-slate-400">: {eventDetail(h)}</span> : null}
                   {h.performedBy?.fullName ? <span className="text-slate-400 dark:text-slate-500"> · {h.performedBy.fullName}</span> : null}
                 </span>
