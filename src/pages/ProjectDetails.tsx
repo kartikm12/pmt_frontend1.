@@ -790,7 +790,7 @@ export function ProjectDetails() {
           projectId={project.id}
           columns={columns}
           people={project.teamMemberIds.map((m) => userMap.get(m)).filter((u): u is User => !!u).map((u) => ({ id: u.id, name: u.name }))}
-          canManage={canManage}
+          canManage={canManage && currentUser?.role === "Admin"} // only Admins set up rules
           closed={closed}
         />
       ) : (

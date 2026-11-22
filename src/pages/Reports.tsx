@@ -67,8 +67,8 @@ export function Reports() {
   const exportCsv = () => {
     if (!data) return;
     downloadCsv(`report-${days}d-${new Date().toLocaleDateString("en-CA")}.csv`, [
-      ["Project", "Status", "Reason", "Tasks", "Done", "Progress %", "Overdue", "Hours logged", "Hours estimated", "Deadline"],
-      ...data.projectProgress.map((p) => [p.name, HEALTH[p.health].label, p.healthReason, p.total, p.completed, p.total ? Math.round((p.completed / p.total) * 100) : 0, p.overdue, p.loggedHours, p.estimatedHours, p.dueDate ? safeFormat(p.dueDate, "yyyy-MM-dd", "") : ""]),
+      ["Project", "Status", "Reason", "Tasks", "Done", "Progress %", "Overdue", "Deadline"],
+      ...data.projectProgress.map((p) => [p.name, HEALTH[p.health].label, p.healthReason, p.total, p.completed, p.total ? Math.round((p.completed / p.total) * 100) : 0, p.overdue, p.dueDate ? safeFormat(p.dueDate, "yyyy-MM-dd", "") : ""]),
       [],
       ["Overdue task", "Project", "Days late", "Assignees"],
       ...data.overdueTasks.map((t) => [t.title, t.project?.name ?? "", t.daysLate, t.assignees.map((a) => a.fullName).join("; ")])
@@ -255,8 +255,6 @@ function ProjectHealth({ data }: { data: ReportData }) {
   // Problems first: overdue, then at risk, then on track
   const order = { overdue: 0, at_risk: 1, on_track: 2 } as const;
   const rows = [...data.projectProgress].sort((a, b) => order[a.health] - order[b.health] || b.overdue - a.overdue);
-  const hours = (p: ReportData["projectProgress"][number]) => (p.estimatedHours ? `${p.loggedHours} / ${p.estimatedHours}h` : p.loggedHours ? `${p.loggedHours}h` : "—");
-  const over = (p: ReportData["projectProgress"][number]) => p.estimatedHours > 0 && p.loggedHours > p.estimatedHours;
   const wide = useMediaQuery("(min-width: 768px)");
   return (
     <section className="card overflow-hidden" aria-label="Project health">
@@ -277,7 +275,6 @@ function ProjectHealth({ data }: { data: ReportData }) {
                   <th className="px-5 py-2 font-semibold">Project</th>
                   <th className="px-5 py-2 font-semibold">Progress</th>
                   <th className="px-5 py-2 font-semibold">Overdue</th>
-                  <th className="px-5 py-2 font-semibold">Hours</th>
                   <th className="px-5 py-2 font-semibold">Status</th>
                 </tr>
               </thead>
@@ -290,7 +287,6 @@ function ProjectHealth({ data }: { data: ReportData }) {
                     </td>
                     <td className="px-5 py-3"><Progress done={p.completed} total={p.total} /></td>
                     <td className={`px-5 py-3 font-semibold ${p.overdue ? "text-red-600 dark:text-red-400" : "text-slate-400"}`}>{p.overdue}</td>
-                    <td className={`px-5 py-3 whitespace-nowrap ${over(p) ? "text-red-600 dark:text-red-400 font-semibold" : "text-slate-600 dark:text-slate-300"}`}>{hours(p)}</td>
                     <td className="px-5 py-3">
                       <HealthBadge health={p.health} reason={p.healthReason} />
                       {p.healthReason && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{p.healthReason}</p>}
@@ -310,7 +306,7 @@ function ProjectHealth({ data }: { data: ReportData }) {
                 </div>
                 <Progress done={p.completed} total={p.total} />
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {p.completed}/{p.total} tasks · <span className={p.overdue ? "text-red-600 font-semibold" : ""}>{p.overdue} overdue</span> · <span className={over(p) ? "text-red-600 font-semibold" : ""}>{hours(p)}</span>
+                  {p.completed}/{p.total} tasks · <span className={p.overdue ? "text-red-600 font-semibold" : ""}>{p.overdue} overdue</span>
                   {p.dueDate ? ` · due ${safeFormat(p.dueDate, "MMM d")}` : ""}
                 </p>
                 {p.healthReason && <p className="text-xs text-slate-500 dark:text-slate-400">{p.healthReason}</p>}

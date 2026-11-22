@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Calendar, Edit2, Trash2, Eye, EyeOff, Repeat, Lock, MoreHorizontal, FolderKanban, CheckSquare, Link as LinkIcon, Paperclip, X, Loader2 } from "lucide-react";
+import { Calendar, Edit2, Trash2, Eye, Repeat, Lock, MoreHorizontal, FolderKanban, CheckSquare, Link as LinkIcon, Paperclip, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, columnOf, STAGE_COLUMNS } from "@/lib/api";
 import type { Activity, BoardColumn, Project, Task, TaskLink, User, TaskPriority, TaskStatus } from "@/lib/api-types";
@@ -25,7 +25,6 @@ function dueWords(due: string, done: boolean) {
 import { emptyPlanning, openBlockers, planningError, planningFromTask, planningToPayload, type PlanningState } from "@/lib/planning";
 import { LabelChip } from "@/components/ui/LabelChip";
 import { TaskChecklist } from "@/components/task/TaskChecklist";
-import { TimeLog } from "@/components/task/TimeLog";
 import { AttachmentSection } from "@/components/AttachmentSection";
 import { AddTaskModal } from "@/components/AddTaskModal";
 import { safeFormat, isOverdue, deadlineError } from "@/utils/dateUtils";
@@ -75,8 +74,7 @@ export function TaskDetails() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [formError, setFormError] = useState("");
   const [planning, setPlanning] = useState<PlanningState>(emptyPlanning);
-  const [watchBusy, setWatchBusy] = useState(false);
-  const [tab, setTab] = useState<"comments" | "activity" | "time" | "files">("comments");
+  const [tab, setTab] = useState<"comments" | "activity" | "files">("comments");
   const [menuOpen, setMenuOpen] = useState(false);
   const [fileCount, setFileCount] = useState<number | null>(null);
   const [statusBusy, setStatusBusy] = useState(false);
@@ -273,22 +271,6 @@ export function TaskDetails() {
   const projectClosed = task?.project?.status === "Completed" || task?.project?.status === "Cancelled";
   const canManage = task?.myRole === "manager" && !projectClosed;
   const canContribute = !!task?.myRole && task.myRole !== "viewer" && !projectClosed;
-  const watching = !!task?.watchers?.some((w) => w.id === currentUser?.id);
-
-  const toggleWatch = async () => {
-    if (!id || !task || watchBusy) return;
-    setWatchBusy(true);
-    try {
-      await api.setWatching(id, !watching);
-      setTask(await api.getTask(id));
-      toast.success(watching ? "You'll stop getting updates on this task" : "You'll get updates on this task");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't change following");
-    } finally {
-      setWatchBusy(false);
-    }
-  };
-
   // The project's own columns (the usual four for an older server)
   const boardColumns = task?.columns?.length ? task.columns : STAGE_COLUMNS;
   const currentColumn = task ? columnOf(boardColumns, task) : undefined;
@@ -559,16 +541,6 @@ export function TaskDetails() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={toggleWatch}
-            disabled={watchBusy}
-            aria-pressed={watching}
-            title={watching ? "Stop getting updates on this task" : "Get notified about changes and comments"}
-            className="btn-secondary px-4 py-2 text-sm font-bold flex items-center gap-2 disabled:opacity-50"
-          >
-            {watching ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            {watching ? "Following" : "Follow"}
-          </button>
           {canManage && (
             <button onClick={openModal} className="btn-secondary px-4 py-2 text-sm font-bold flex items-center gap-2">
               <Edit2 className="w-4 h-4" />
@@ -649,7 +621,6 @@ export function TaskDetails() {
             {([
               ["comments", `Comments ${task.comments?.length ?? 0}`],
               ["activity", "Activity"],
-              ["time", `Time ${loggedHours}h`],
               ["files", `Files ${fileCount ?? task.attachmentCount ?? task.attachments?.length ?? 0}`]
             ] as const).map(([key, label]) => (
               <button
@@ -895,18 +866,6 @@ export function TaskDetails() {
                 <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No activity yet.</p>
               )}
             </div>
-          )}
-
-          {tab === "time" && (
-            <TimeLog
-              taskId={task.id}
-              entries={task.timeEntries ?? []}
-              estimateHours={task.estimateHours}
-              canLog={canContribute}
-              canManage={canManage}
-              currentUserId={currentUser?.id}
-              onChange={(timeEntries) => setTask((prev) => prev && { ...prev, timeEntries })}
-            />
           )}
 
           {tab === "files" && (

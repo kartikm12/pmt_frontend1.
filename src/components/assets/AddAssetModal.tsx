@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useEscapeToClose } from "./assetUi";
+import { useAssigneeProjects, useEscapeToClose } from "./assetUi";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -19,6 +19,22 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Asset, AssetCategory, AssetCondition, Project, User } from "@/lib/api-types";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
+
+// Warranty is a length, not two dates: the end is the purchase date (or today) plus the months
+const WARRANTY_OPTIONS = [
+  { id: "", name: "No warranty" },
+  { id: "3", name: "3 months" },
+  { id: "6", name: "6 months" },
+  { id: "12", name: "1 year" },
+  { id: "24", name: "2 years" },
+  { id: "36", name: "3 years" },
+  { id: "60", name: "5 years" }
+];
+function warrantyEndText(purchaseDate: string, months: number) {
+  const [y, m, d] = (purchaseDate || new Date().toLocaleDateString("en-CA")).split("-").map(Number);
+  const end = new Date(Date.UTC(y, m - 1 + months, d));
+  return end.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
 
 interface AddAssetModalProps {
   isOpen: boolean;
@@ -56,15 +72,14 @@ export function AddAssetModal({
 
   // Section 3: Purchase & Warranty
   const [purchaseDate, setPurchaseDate] = useState("");
-  const [purchaseCost, setPurchaseCost] = useState("");
   const [vendorName, setVendorName] = useState("");
-  const [warrantyStartDate, setWarrantyStartDate] = useState("");
-  const [warrantyEndDate, setWarrantyEndDate] = useState("");
+  const [warrantyMonths, setWarrantyMonths] = useState("");
 
   // Section 4: Assign To
   const [assignmentType, setAssignmentType] = useState<"STOCK" | "ASSIGN">("STOCK");
   const [employeeId, setEmployeeId] = useState("");
   const [projectId, setProjectId] = useState("");
+  const assigneeProjects = useAssigneeProjects(projects, employeeId, projectId, setProjectId);
   const [assignmentCondition, setAssignmentCondition] = useState<AssetCondition>("GOOD");
   const [assignmentNotes, setAssignmentNotes] = useState("");
 
@@ -155,10 +170,8 @@ export function AddAssetModal({
       setPhotoFiles([]);
       setPhotoPreviews([]);
       setPurchaseDate("");
-      setPurchaseCost("");
       setVendorName("");
-      setWarrantyStartDate("");
-      setWarrantyEndDate("");
+      setWarrantyMonths("");
       setAssignmentType("STOCK");
       setEmployeeId("");
       setProjectId("");
@@ -175,12 +188,6 @@ export function AddAssetModal({
   const errors = {
     categoryId: !categoryId ? "Category is required" : "",
     assetName: !assetName.trim() ? "Asset name is required" : "",
-    purchaseCost:
-      purchaseCost && Number(purchaseCost) < 0 ? "Cost cannot be negative" : "",
-    warrantyDates:
-      warrantyStartDate && warrantyEndDate && new Date(warrantyEndDate) < new Date(warrantyStartDate)
-        ? "The warranty can't end before it starts"
-        : "",
     employeeId: assignmentType === "ASSIGN" && !employeeId ? "Please select an employee" : ""
   };
 
@@ -224,16 +231,12 @@ export function AddAssetModal({
     setTouched({
       categoryId: true,
       assetName: true,
-      purchaseCost: true,
-      warrantyDates: true,
       employeeId: true
     });
 
     if (
       errors.categoryId ||
       errors.assetName ||
-      errors.purchaseCost ||
-      errors.warrantyDates ||
       errors.employeeId
     ) {
       toast.error("Please correct the errors in the form before submitting");
@@ -254,10 +257,8 @@ export function AddAssetModal({
         condition,
         location: location.trim() || undefined,
         purchaseDate: purchaseDate || undefined,
-        purchaseCost: purchaseCost ? Number(purchaseCost) : undefined,
         vendorName: vendorName.trim() || undefined,
-        warrantyStartDate: warrantyStartDate || undefined,
-        warrantyEndDate: warrantyEndDate || undefined,
+        warrantyMonths: warrantyMonths ? Number(warrantyMonths) : undefined,
         assignmentType,
         employeeId: assignmentType === "ASSIGN" ? employeeId : undefined,
         projectId: assignmentType === "ASSIGN" && projectId ? projectId : undefined,
@@ -521,7 +522,7 @@ export function AddAssetModal({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                  Purchase Date
+                  Purchase date
                 </label>
                 <input
                   type="date"
@@ -533,26 +534,26 @@ export function AddAssetModal({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                  Purchase Cost (INR/USD)
+                  Warranty period
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={purchaseCost}
-                  onChange={(e) => setPurchaseCost(e.target.value)}
-                  onBlur={() => handleBlur("purchaseCost")}
-                  className="w-full h-10 px-3.5 input text-sm focus:outline-none transition-all dark:text-slate-100 rounded-lg"
+                <SingleSelectDropdown
+                  ariaLabel="Warranty period"
+                  options={WARRANTY_OPTIONS}
+                  selectedId={warrantyMonths}
+                  onChange={setWarrantyMonths}
+                  searchable={false}
+                  placeholder="No warranty"
                 />
-                {touched.purchaseCost && errors.purchaseCost && (
-                  <p className="text-xs text-rose-500 mt-1">{errors.purchaseCost}</p>
+                {warrantyMonths && (
+                  <p data-warranty-ends className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Ends {warrantyEndText(purchaseDate, Number(warrantyMonths))}
+                  </p>
                 )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                  Vendor Name
+                  Vendor name
                 </label>
                 <input
                   type="text"
@@ -561,36 +562,6 @@ export function AddAssetModal({
                   onChange={(e) => setVendorName(e.target.value)}
                   className="w-full h-10 px-3.5 input text-sm focus:outline-none transition-all dark:text-slate-100 rounded-lg"
                 />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                  Warranty Start Date
-                </label>
-                <input
-                  type="date"
-                  value={warrantyStartDate}
-                  onChange={(e) => setWarrantyStartDate(e.target.value)}
-                  className="w-full h-10 px-3.5 input text-sm focus:outline-none transition-all dark:text-slate-100 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                  Warranty End Date
-                </label>
-                <input
-                  type="date"
-                  value={warrantyEndDate}
-                  onChange={(e) => setWarrantyEndDate(e.target.value)}
-                  onBlur={() => handleBlur("warrantyDates")}
-                  className="w-full h-10 px-3.5 input text-sm focus:outline-none transition-all dark:text-slate-100 rounded-lg"
-                />
-                {touched.warrantyDates && errors.warrantyDates && (
-                  <p className="text-xs text-rose-500 mt-1">{errors.warrantyDates}</p>
-                )}
               </div>
             </div>
           </div>
@@ -627,7 +598,7 @@ export function AddAssetModal({
                   onChange={() => setAssignmentType("ASSIGN")}
                   className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                 />
-                <span>Hand to someone</span>
+                <span>Assign</span>
               </label>
             </div>
 
@@ -648,7 +619,7 @@ export function AddAssetModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center justify-between">
-                      <span>Hand to someone <span className="text-rose-500">*</span></span>
+                      <span>Assignee <span className="text-rose-500">*</span></span>
                       {!isAdmin && hierarchyIds.size > 0 && (
                         <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-normal">
                           {hierarchyIds.size} report{hierarchyIds.size > 1 ? "s" : ""} to you
@@ -662,7 +633,7 @@ export function AddAssetModal({
                         setEmployeeId(id);
                         setTouched((prev) => ({ ...prev, employeeId: true }));
                       }}
-                      placeholder={userOptions.length === 0 ? "No eligible employees found..." : "Pick a person..."}
+                      placeholder={userOptions.length === 0 ? "No eligible employees found..." : "Pick the assignee..."}
                     />
                     {touched.employeeId && errors.employeeId && (
                       <p className="text-xs text-rose-500 mt-1">{errors.employeeId}</p>
@@ -671,16 +642,16 @@ export function AddAssetModal({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                      Assign Project <span className="text-slate-400 font-normal">(Optional)</span>
+                      Project <span className="text-slate-400 font-normal">(optional)</span>
                     </label>
                     <SingleSelectDropdown
                       options={[
                         { id: "", name: "No project" },
-                        ...projects.map((p) => ({ id: p.id, name: p.name }))
+                        ...assigneeProjects.map((p) => ({ id: p.id, name: p.name }))
                       ]}
                       selectedId={projectId}
                       onChange={setProjectId}
-                      placeholder="Select Project..."
+                      placeholder={employeeId ? (assigneeProjects.length ? "Pick one of their projects..." : "They aren't on any project") : "Pick the assignee first"}
                     />
                   </div>
                 </div>

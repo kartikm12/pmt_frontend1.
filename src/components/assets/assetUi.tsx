@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { differenceInCalendarDays, format } from "date-fns";
 import type { Asset, AssetStatus, User } from "@/lib/api-types";
 import { cn } from "@/lib/utils";
@@ -84,4 +84,24 @@ export function useEscapeToClose(open: boolean, onClose: () => void) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+}
+
+// The projects an assignee is on (as a member or its manager). Until someone is picked the list is empty;
+// once they are, a project they aren't on is cleared, and if they're on exactly one it's picked for you.
+export function useAssigneeProjects<P extends { id: string; teamMemberIds?: string[]; managerId?: string }>(
+  projects: P[],
+  assigneeId: string,
+  projectId: string,
+  setProjectId: (id: string) => void
+): P[] {
+  const theirs = useMemo(
+    () => (assigneeId ? projects.filter((p) => p.managerId === assigneeId || (p.teamMemberIds ?? []).includes(assigneeId)) : []),
+    [projects, assigneeId]
+  );
+  useEffect(() => {
+    if (!assigneeId) return;
+    if (theirs.length === 1 && projectId !== theirs[0].id) setProjectId(theirs[0].id);
+    else if (projectId && !theirs.some((p) => p.id === projectId)) setProjectId("");
+  }, [assigneeId, theirs]); // eslint-disable-line react-hooks/exhaustive-deps
+  return theirs;
 }
