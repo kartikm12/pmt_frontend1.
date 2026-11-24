@@ -687,6 +687,11 @@ export const api = {
 
   // ----- board columns and rules (11 Nov) -----
   // A project's columns in board order (an older server has none: the usual four stand in)
+  // How long each task spent in each stage, in order (Timeline -> Stages)
+  async getStageHistory(projectId: string) {
+    return request<Array<{ id: string; title: string; status: string; createdAt: string; segments: Array<{ stage: string; from: string; to: string | null }> }>>(`/projects/${projectId}/stage-history`);
+  },
+
   async getColumns(projectId: string): Promise<BoardColumn[]> {
     try {
       const raw = await request<RawColumn[]>(`/projects/${projectId}/columns`);
