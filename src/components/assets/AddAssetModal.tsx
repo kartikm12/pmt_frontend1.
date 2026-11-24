@@ -627,7 +627,7 @@ export function AddAssetModal({
                   onChange={() => setAssignmentType("ASSIGN")}
                   className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                 />
-                <span>Hand to someone</span>
+                <span>Assign to someone</span>
               </label>
             </div>
 
@@ -648,7 +648,7 @@ export function AddAssetModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center justify-between">
-                      <span>Hand to someone <span className="text-rose-500">*</span></span>
+                      <span>Assign To <span className="text-rose-500">*</span></span>
                       {!isAdmin && hierarchyIds.size > 0 && (
                         <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-normal">
                           {hierarchyIds.size} report{hierarchyIds.size > 1 ? "s" : ""} to you
@@ -688,7 +688,7 @@ export function AddAssetModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                      Handover Condition
+                      Assign Condition
                     </label>
                     <SingleSelectDropdown
                       options={[
