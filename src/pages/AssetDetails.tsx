@@ -35,10 +35,21 @@ const OLD_CHANGE_WORDING: Record<string, { label: string; strip: RegExp }> = {
 };
 const eventLabel = (h: AssetEvent) =>
   h.eventType === "UPDATED" ? OLD_CHANGE_WORDING[h.title]?.label ?? h.title : EVENT_LABEL[h.eventType] ?? h.title;
+// Older entries saved codes and ids ("Receipt confirmed by cm…", "Disposition: STOCK"): say them in words
+const OLD_DETAIL: Partial<Record<string, (d: string) => string>> = {
+  RECEIPT_CONFIRMED: (d) => (/^Receipt confirmed by \S+$/.test(d) ? "Confirmed they have it" : d),
+  RETURNED: (d) => d.replace(/^Returned from (.+) \(Disposition: (\w+)\)$/, (_m, who, to) => `Returned by ${who}, ${to === "REPAIR" ? "sent to repair" : "back in stock"}`),
+  REPAIR_COMPLETED: (d) => d.replace(/^Repair completed\. Condition: (\w+)\. Disposition: (\w+)$/, (_m, c, to) => `Condition ${c.toLowerCase()}, ${to === "ASSIGN" ? "assigned again" : "back in stock"}`),
+  MARKED_LOST: (d) => (d === "Asset reported lost" ? "Reported lost" : d),
+  RETIRED: (d) => (d === "Asset formally retired" ? "No longer in use" : d),
+  DELETED: (d) => (/^Asset moved to trash/.test(d) ? "Kept in Recently deleted for 30 days" : d),
+  RESTORED: (d) => (d === "Asset restored from Recently Deleted" ? "Brought back from Recently deleted" : d)
+};
 const eventDetail = (h: AssetEvent) => {
   if (h.eventType === "CREATED") return "";
   const old = h.eventType === "UPDATED" ? OLD_CHANGE_WORDING[h.title] : undefined;
-  return old ? h.description.replace(old.strip, "") : h.description;
+  if (old) return h.description.replace(old.strip, "");
+  return OLD_DETAIL[h.eventType]?.(h.description ?? "") ?? h.description;
 };
 
 const money = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);

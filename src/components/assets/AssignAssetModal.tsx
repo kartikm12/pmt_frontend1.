@@ -190,7 +190,7 @@ export function AssignAssetModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-              Handover Condition
+              Condition when assigned
             </label>
             <SingleSelectDropdown
               options={[

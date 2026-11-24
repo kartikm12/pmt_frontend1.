@@ -55,7 +55,7 @@ export const holderName = (a: Asset) => (a.currentHolder as unknown as { fullNam
 export const describeItem = (a: Asset) => [a.brand, a.model].filter(Boolean).join(" ") || a.category?.name || "";
 
 // The people a manager may hand things to: everyone below them in the "Reports to" chain, plus themselves.
-// Admins may hand to anyone. (The server checks the same rule; this keeps the pickers honest.)
+// Admins may assign to anyone. (The server checks the same rule; this keeps the pickers honest.)
 export function assignablePeople(people: User[], me: { id: string; role?: string } | null | undefined): User[] {
   if (!me) return [];
   const active = people.filter((p) => p.status !== "Suspended");
