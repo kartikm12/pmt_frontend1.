@@ -16,6 +16,7 @@ import { emptyPlanning, planningError, planningFromTask, planningToPayload, type
 import { downloadCsv } from "@/lib/csv";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { ShowMore, useShowMore } from "@/components/ui/ShowMore";
 import { RepeatChip } from "@/components/RepeatPicker";
 
 const STATUSES: TaskStatus[] = ["To Do", "In Progress", "Review", "Completed"];
@@ -233,9 +234,11 @@ export function Tasks() {
   // New tasks need the manager role in some project; the server checks the chosen one
   const canCreate = isManager || allTasks.some((t) => t.myRole === "manager");
 
+  // 25 rows at a time; a new search or filter starts from the first page again
+  const { shown: shownTasks, left: tasksLeft, more: showMoreTasks } = useShowMore(filteredTasks, 25, `${activeSearchQuery}|${statusFilter}|${priorityFilter}|${projectFilter}|${personFilter}|${labelFilter}`);
   // Selection only keeps rows that are still on screen
-  const visibleSelected = filteredTasks.filter((t) => selected.has(t.id));
-  const allVisibleSelected = filteredTasks.length > 0 && visibleSelected.length === filteredTasks.length;
+  const visibleSelected = shownTasks.filter((t) => selected.has(t.id));
+  const allVisibleSelected = shownTasks.length > 0 && visibleSelected.length === shownTasks.length;
   // Bulk controls appear only when the person may use them on at least one selected task (same rules as runBulk)
   const canBulkStatus = visibleSelected.some((t) => !!t.myRole && t.myRole !== "viewer");
   const canBulkManage = visibleSelected.some((t) => t.myRole === "manager");
@@ -499,7 +502,7 @@ export function Tasks() {
         ) : !wide ? (
           // Phones: one card per task (the table needs ~900px); actions live on the task page
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {filteredTasks.map((task) => {
+            {shownTasks.map((task) => {
               const late = task.status !== "Completed" && isOverdue(task.dueDate);
               return (
                 <li key={task.id} className={`flex items-start gap-3 px-4 py-4 ${selected.has(task.id) ? "bg-indigo-50/60 dark:bg-indigo-900/20" : ""}`} data-task-card={task.title}>
@@ -539,7 +542,7 @@ export function Tasks() {
                     <input
                       type="checkbox"
                       checked={allVisibleSelected}
-                      onChange={() => setSelected(allVisibleSelected ? new Set() : new Set(filteredTasks.map((t) => t.id)))}
+                      onChange={() => setSelected(allVisibleSelected ? new Set() : new Set(shownTasks.map((t) => t.id)))}
                       aria-label="Select all tasks"
                       className="w-4 h-4 accent-indigo-600"
                     />
@@ -553,7 +556,7 @@ export function Tasks() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {filteredTasks.map((task) => {
+                {shownTasks.map((task) => {
                   const project = projects.find((item) => item.id === task.projectId);
 
                   return (
@@ -665,6 +668,7 @@ export function Tasks() {
             </table>
           </div>
         )}
+        {!isLoading && <ShowMore left={tasksLeft} onMore={showMoreTasks} className="border-t border-zinc-100 dark:border-zinc-800" />}
       </div>
 
       <ConfirmDialog

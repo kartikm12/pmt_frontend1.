@@ -14,6 +14,7 @@ import { WorkloadPanel } from "@/components/team/WorkloadPanel";
 import { useBusy } from "@/lib/useBusy";
 import { PendingSignups } from "@/components/team/PendingSignups";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { ShowMore, useShowMore } from "@/components/ui/ShowMore";
 
 const ROLE_OPTIONS: User["role"][] = [
   "Manager",
@@ -115,6 +116,8 @@ export function Team() {
       return matchesSearch && matchesRole;
     });
   }, [teamMembers, activeSearchQuery, roleFilter]);
+
+  const { shown: shownUsers, left: usersLeft, more: showMoreUsers } = useShowMore(filteredUsers, 20, `${activeSearchQuery}|${roleFilter}`);
 
   const handleSearch = () => {
     setActiveSearchQuery(searchQuery);
@@ -460,7 +463,7 @@ export function Team() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 max-md:block">
-                {filteredUsers.map((user) => (
+                {shownUsers.map((user) => (
                   <tr key={user.id} data-member-row={user.email} className="hover:bg-white/10 dark:hover:bg-slate-800/30 transition-all group max-md:relative max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:px-4 max-md:py-4">
                     <td className="px-8 py-5 whitespace-nowrap max-md:w-full max-md:p-0 max-md:pr-12">
                       <div className="flex items-center gap-4">
@@ -588,6 +591,7 @@ export function Team() {
             </table>
           </div>
         )}
+        <ShowMore left={usersLeft} onMore={showMoreUsers} className="border-t border-slate-100 dark:border-slate-800" />
       </div>
 
       {isDeleteModalOpen &&

@@ -14,6 +14,7 @@ import { useBusy } from "@/lib/useBusy";
 import { isManager } from "@/utils/roleUtils";
 import { Avatar } from "@/components/ui/Avatar";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { ShowMore, useShowMore } from "@/components/ui/ShowMore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OverdueBadge, projectIsOverdue } from "@/components/ui/OverdueBadge";
 
@@ -111,6 +112,8 @@ export function Projects() {
       return matchesSearch && matchesStatus;
     });
   }, [activeSearchQuery, statusFilter, allProjects]);
+
+  const { shown: shownProjects, left: projectsLeft, more: showMoreProjects } = useShowMore(filteredProjects, 12, `${activeSearchQuery}|${statusFilter}`);
 
   const handleSearch = () => {
     setActiveSearchQuery(searchQuery);
@@ -315,7 +318,7 @@ export function Projects() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredProjects.map((project) => (
+          {shownProjects.map((project) => (
             <Link key={project.id} to={`/projects/${project.id}`} className="card hover:shadow-md hover:translate-y-[-2px] transition-all group cursor-pointer block overflow-hidden">
               <div className="p-8">
                 <div className="flex items-start justify-between">
@@ -410,6 +413,7 @@ export function Projects() {
           ))}
         </div>
       )}
+      {!isLoading && <ShowMore left={projectsLeft} onMore={showMoreProjects} />}
     </div>
   );
 }
