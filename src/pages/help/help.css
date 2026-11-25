@@ -1,0 +1,50 @@
+/* Help pages: the guide's own text styles (layout uses Tailwind). PMT's indigo, light and dark. */
+.hp { --hp-brand: #4f46e5; --hp-ring: #c7d2fe; --hp-line: #e2e8f0; --hp-text: #0f172a; --hp-muted: #64748b; --hp-page: #ffffff; color: var(--hp-text); }
+.dark .hp { --hp-brand: #818cf8; --hp-ring: #3730a3; --hp-line: #334155; --hp-text: #e2e8f0; --hp-muted: #94a3b8; --hp-page: #0f172a; }
+
+.hp-body { font-size: 15.5px; line-height: 1.7; overflow-wrap: anywhere; }
+.hp-body p { margin: 0 0 12px; }
+.hp-body h2 { font-size: 19px; font-weight: 700; margin: 30px 0 12px; scroll-margin-top: 80px; }
+.hp-body h3 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; scroll-margin-top: 80px; }
+.hp-body ul, .hp-body ol { margin: 0 0 14px; padding-left: 22px; }
+.hp-body ul { list-style: disc; }
+.hp-body ol { list-style: decimal; }
+.hp-body li { margin: 4px 0; }
+.hp-body strong { font-weight: 650; }
+.hp-body em { color: var(--hp-muted); }
+.hp-body a { color: var(--hp-brand); font-weight: 600; text-decoration: none; }
+.hp-body a:hover { text-decoration: underline; }
+.hp-body code { font-size: 13.5px; padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--hp-brand) 10%, transparent); }
+.hp-soon { color: var(--hp-muted); }
+
+.hp-step { display: flex; align-items: center; gap: 12px; }
+.hp-step b { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; background: var(--hp-brand); color: #fff; }
+.hp-sec-step > :not(h2) { margin-left: 42px; }
+@media (max-width: 640px) { .hp-sec-step > :not(h2) { margin-left: 0; } }
+
+.hp-mk { display: inline-grid; place-items: center; min-width: 21px; height: 21px; padding: 0 5px; border-radius: 999px; background: var(--hp-brand); color: #fff; font-size: 11.5px; font-weight: 700; line-height: 1; vertical-align: 2px; margin: 0 3px 0 1px; box-shadow: 0 0 0 2.5px var(--hp-ring); }
+
+.hp-shot { margin: 16px 0 26px; }
+.hp-shot img { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--hp-line); background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -12px rgba(15, 23, 42, .18); cursor: zoom-in; }
+.hp-shot figcaption { margin-top: 9px; font-size: 13.5px; line-height: 1.5; color: var(--hp-muted); }
+
+.hp-box { margin: 18px 0 24px; padding: 13px 16px; border-radius: 12px; border: 1px solid; font-size: 15px; line-height: 1.6; }
+.hp-box > :last-child { margin-bottom: 0; }
+.hp-box-title { display: block; margin-bottom: 4px; font-size: 14px; }
+.hp-box-tip { background: color-mix(in srgb, #16a34a 7%, var(--hp-page)); border-color: color-mix(in srgb, #16a34a 30%, transparent); }
+.hp-box-note { background: color-mix(in srgb, var(--hp-brand) 6%, var(--hp-page)); border-color: color-mix(in srgb, var(--hp-brand) 28%, transparent); }
+.hp-box-warning { background: color-mix(in srgb, #d97706 8%, var(--hp-page)); border-color: color-mix(in srgb, #d97706 35%, transparent); }
+
+.hp-faq { border: 1px solid var(--hp-line); border-radius: 12px; padding: 0 16px; margin: 10px 0; }
+.hp-faq summary { cursor: pointer; padding: 12px 0; font-weight: 650; list-style: none; }
+.hp-faq summary::-webkit-details-marker { display: none; }
+.hp-faq summary::before { content: "+"; display: inline-block; width: 18px; color: var(--hp-brand); font-weight: 700; }
+.hp-faq[open] summary::before { content: "–"; }
+.hp-faq > div { padding: 0 0 12px 18px; }
+
+.hp-body table { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: 14.5px; }
+.hp-body th, .hp-body td { border-bottom: 1px solid var(--hp-line); padding: 8px 10px; text-align: left; vertical-align: top; }
+.hp-body th { font-weight: 650; color: var(--hp-muted); }
+
+.hp-zoom { position: fixed; inset: 0; z-index: 70; background: rgba(15, 23, 42, .78); display: grid; place-items: center; padding: 24px; cursor: zoom-out; }
+.hp-zoom img { max-width: min(1400px, 100%); max-height: 100%; border-radius: 12px; background: #fff; }

@@ -12,7 +12,8 @@ import {
   CalendarDays,
   Trash2,
   ShieldCheck,
-  Laptop
+  Laptop,
+  LifeBuoy
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { isManager } from "@/utils/roleUtils";
@@ -31,6 +32,7 @@ const navItems = [
   { icon: Trash2, label: "Recently deleted", path: "/trash", managersOnly: true },
   { icon: ShieldCheck, label: "Audit log", path: "/audit", adminOnly: true },
   { icon: Settings, label: "Settings", path: "/settings" },
+  { icon: LifeBuoy, label: "Help", path: "/help" },
 ];
 
 interface SidebarProps {

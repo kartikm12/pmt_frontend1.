@@ -35,7 +35,7 @@ const ACTIONS: { id: RuleActionType; name: string }[] = [
   { id: "MOVE_TO_COLUMN", name: "Move to column" },
   { id: "SET_PRIORITY", name: "Set priority" },
   { id: "ADD_LABEL", name: "Add label" },
-  { id: "ADD_WATCHER", name: "Add as watcher" }
+  { id: "ADD_WATCHER", name: "Add as follower" }
 ];
 const PRIORITIES = [{ id: "LOW", name: "Low" }, { id: "MEDIUM", name: "Medium" }, { id: "HIGH", name: "High" }, { id: "URGENT", name: "Urgent" }];
 const GROUPS = [{ id: "PROJECT_MANAGERS", name: "The project managers" }, { id: "ASSIGNEES", name: "The task's assignees" }];
@@ -107,7 +107,7 @@ export function describeRule(rule: Pick<ProjectRule, "trigger" | "triggerValue" 
   const thens = rule.actions.map((a) => {
     switch (a.type) {
       case "ASSIGN": return `assign ${who(a.value)}`;
-      case "ADD_WATCHER": return `add ${who(a.value)} as a watcher`;
+      case "ADD_WATCHER": return `add ${who(a.value)} as a follower`;
       case "MOVE_TO_COLUMN": return `move it to ${col(a.value)}`;
       case "SET_PRIORITY": return `set priority to ${pri(a.value)}`;
       case "ADD_LABEL": return `add the label ${a.value}`;
