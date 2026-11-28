@@ -5,7 +5,6 @@ import { X, AlertTriangle, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Asset } from "@/lib/api-types";
-import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
 
 interface ReportProblemModalProps {
   isOpen: boolean;
@@ -23,9 +22,6 @@ export function ReportProblemModal({
   asset
 }: ReportProblemModalProps) {
   useEscapeToClose(isOpen, onClose);
-  const [problemCategory, setProblemCategory] = useState<
-    "HARDWARE" | "SOFTWARE" | "PHYSICAL_DAMAGE" | "LOST_STOLEN" | "OTHER"
-  >("HARDWARE");
   const [description, setDescription] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -33,7 +29,6 @@ export function ReportProblemModal({
 
   React.useEffect(() => {
     if (isOpen) {
-      setProblemCategory("HARDWARE");
       setDescription("");
       setPhotoFile(null);
       if (photoPreview) URL.revokeObjectURL(photoPreview);
@@ -63,7 +58,7 @@ export function ReportProblemModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim()) {
-      toast.error("Please provide a description of the problem");
+      toast.error("Write what the problem is.");
       return;
     }
 
@@ -82,7 +77,6 @@ export function ReportProblemModal({
       }
 
       await api.reportAssetProblem(asset.id, {
-        problemCategory,
         description: description.trim(),
         photoUrl
       });
@@ -128,29 +122,13 @@ export function ReportProblemModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-              Problem Category <span className="text-rose-500">*</span>
-            </label>
-            <SingleSelectDropdown
-              options={[
-                { id: "HARDWARE", name: "Hardware Malfunction (Power, Battery, Screen, Keyboard)" },
-                { id: "SOFTWARE", name: "Software / OS / License Issue" },
-                { id: "PHYSICAL_DAMAGE", name: "Physical Damage / Drop / Spill" },
-                { id: "LOST_STOLEN", name: "Lost or Stolen Device" },
-                { id: "OTHER", name: "Something else" }
-              ]}
-              selectedId={problemCategory}
-              onChange={(id) => setProblemCategory(id as any)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-              Detailed Description <span className="text-rose-500">*</span>
+              Problem <span className="text-rose-500">*</span>
             </label>
             <textarea
               required
-              rows={3}
-              placeholder="Describe what happened, when the issue started, and any symptoms observed..."
+              rows={4}
+              aria-label="Problem"
+              placeholder="What's wrong, and since when? e.g. Battery drains in two hours since Monday"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full p-3 input text-sm focus:outline-none transition-all dark:text-slate-100 rounded-lg custom-scrollbar resize-none"
@@ -159,7 +137,7 @@ export function ReportProblemModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-              Photograph / Evidence <span className="text-slate-400 font-normal">(Optional)</span>
+              Photo <span className="text-slate-400 font-normal">(optional)</span>
             </label>
             {photoPreview ? (
               <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 group">

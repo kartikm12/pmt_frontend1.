@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useEscapeToClose } from "./assetUi";
+import { useAssigneeProjects, useEscapeToClose } from "./assetUi";
 import { createPortal } from "react-dom";
 import { X, Wrench, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -39,6 +39,7 @@ export function RepairAssetModal({
   const [disposition, setDisposition] = useState<"STOCK" | "ASSIGN">("STOCK");
   const [employeeId, setEmployeeId] = useState("");
   const [projectId, setProjectId] = useState("");
+  const assigneeProjects = useAssigneeProjects(projects, employeeId, projectId, setProjectId);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -213,7 +214,7 @@ export function RepairAssetModal({
                         onChange={() => setDisposition("ASSIGN")}
                         className="w-4 h-4 text-indigo-600"
                       />
-                      <span className="text-xs font-bold">Reassign to User</span>
+                      <span className="text-xs font-bold">Assign</span>
                     </div>
                     <span className="text-[11px] text-slate-500">Assign immediately</span>
                   </label>
@@ -224,28 +225,28 @@ export function RepairAssetModal({
                 <div className="space-y-3 pt-2">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                      Assign Employee <span className="text-rose-500">*</span>
+                      Assignee <span className="text-rose-500">*</span>
                     </label>
                     <SingleSelectDropdown
                       options={users.map((u) => ({ id: u.id, name: `${u.name} (${u.role})` }))}
                       selectedId={employeeId}
                       onChange={setEmployeeId}
-                      placeholder="Pick a person..."
+                      placeholder="Pick the assignee..."
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                      Assign Project
+                      Project <span className="text-slate-400 font-normal">(optional)</span>
                     </label>
                     <SingleSelectDropdown
                       options={[
                         { id: "", name: "No project" },
-                        ...projects.map((p) => ({ id: p.id, name: p.name }))
+                        ...assigneeProjects.map((p) => ({ id: p.id, name: p.name }))
                       ]}
                       selectedId={projectId}
                       onChange={setProjectId}
-                      placeholder="Select Project..."
+                      placeholder={employeeId ? (assigneeProjects.length ? "Pick one of their projects..." : "They aren't on any project") : "Pick the assignee first"}
                     />
                   </div>
                 </div>

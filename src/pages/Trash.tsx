@@ -8,6 +8,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { useAuth } from "@/context/AuthContext";
 import { isManager } from "@/utils/roleUtils";
 import { cn } from "@/lib/utils";
+import { ShowMore, useShowMore } from "@/components/ui/ShowMore";
 
 type Kind = "project" | "task";
 type Item = { kind: Kind; id: string; name: string; where: string; deletedAt: string; deletedBy: string | null };
@@ -50,10 +51,12 @@ function TrashView() {
   }, []);
 
   const counts = { all: items?.length ?? 0, project: items?.filter((i) => i.kind === "project").length ?? 0, task: items?.filter((i) => i.kind === "task").length ?? 0 };
-  const shown = useMemo(() => {
+  const matching = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (items ?? []).filter((i) => (filter === "all" || i.kind === filter) && (!q || `${i.name} ${i.where} ${i.deletedBy ?? ""}`.toLowerCase().includes(q)));
   }, [items, filter, query]);
+  // 25 at a time; a new filter or search starts from the first page again
+  const { shown, left: itemsLeft, more: showMoreItems } = useShowMore(matching, 25, `${filter}|${query}`);
   const shownSelected = shown.filter((i) => selected.has(i.id));
   const allShownSelected = shown.length > 0 && shownSelected.length === shown.length;
 
@@ -131,7 +134,7 @@ function TrashView() {
             </div>
           )}
 
-          {!shown.length ? (
+          {!matching.length ? (
             <div className="card p-10 text-center text-sm text-slate-500 dark:text-slate-400">No deleted items match.</div>
           ) : (
             <div className="card overflow-hidden">
@@ -153,6 +156,7 @@ function TrashView() {
                   </section>
                 );
               })}
+              <ShowMore left={itemsLeft} onMore={showMoreItems} className="border-t border-slate-100 dark:border-slate-800" />
             </div>
           )}
         </>

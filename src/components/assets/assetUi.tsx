@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { differenceInCalendarDays, format } from "date-fns";
 import type { Asset, AssetStatus, User } from "@/lib/api-types";
 import { cn } from "@/lib/utils";
@@ -55,7 +55,7 @@ export const holderName = (a: Asset) => (a.currentHolder as unknown as { fullNam
 export const describeItem = (a: Asset) => [a.brand, a.model].filter(Boolean).join(" ") || a.category?.name || "";
 
 // The people a manager may hand things to: everyone below them in the "Reports to" chain, plus themselves.
-// Admins may hand to anyone. (The server checks the same rule; this keeps the pickers honest.)
+// Admins may assign to anyone. (The server checks the same rule; this keeps the pickers honest.)
 export function assignablePeople(people: User[], me: { id: string; role?: string } | null | undefined): User[] {
   if (!me) return [];
   const active = people.filter((p) => p.status !== "Suspended");
@@ -84,4 +84,24 @@ export function useEscapeToClose(open: boolean, onClose: () => void) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+}
+
+// The projects an assignee is on (as a member or its manager). Until someone is picked the list is empty;
+// once they are, a project they aren't on is cleared, and if they're on exactly one it's picked for you.
+export function useAssigneeProjects<P extends { id: string; teamMemberIds?: string[]; managerId?: string }>(
+  projects: P[],
+  assigneeId: string,
+  projectId: string,
+  setProjectId: (id: string) => void
+): P[] {
+  const theirs = useMemo(
+    () => (assigneeId ? projects.filter((p) => p.managerId === assigneeId || (p.teamMemberIds ?? []).includes(assigneeId)) : []),
+    [projects, assigneeId]
+  );
+  useEffect(() => {
+    if (!assigneeId) return;
+    if (theirs.length === 1 && projectId !== theirs[0].id) setProjectId(theirs[0].id);
+    else if (projectId && !theirs.some((p) => p.id === projectId)) setProjectId("");
+  }, [assigneeId, theirs]); // eslint-disable-line react-hooks/exhaustive-deps
+  return theirs;
 }

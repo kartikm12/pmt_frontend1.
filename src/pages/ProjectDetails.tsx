@@ -19,6 +19,7 @@ import { AttachmentSection } from "@/components/AttachmentSection";
 import { Avatar } from "@/components/ui/Avatar";
 import { LabelChip } from "@/components/ui/LabelChip";
 import { ProjectTimeline } from "@/components/project/ProjectTimeline";
+import { StageTimeline } from "@/components/project/StageTimeline";
 import { ProjectActivity } from "@/components/project/ProjectActivity";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { SingleSelectDropdown } from "@/components/ui/SingleSelectDropdown";
@@ -53,6 +54,7 @@ export function ProjectDetails() {
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   // This project's own board columns (each counts as one of the four stages)
+  const [timelineView, setTimelineView] = useState<"due" | "stages">("due");
   const [columns, setColumns] = useState<BoardColumn[]>(STAGE_COLUMNS);
   const [editingColumns, setEditingColumns] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("board");
@@ -784,13 +786,28 @@ export function ProjectDetails() {
           <AttachmentSection projectId={project.id} initialAttachments={project.attachments} canContribute={canContribute} canManage={canManageWork} />
         </div>
       ) : activeTab === "timeline" ? (
-        <ProjectTimeline tasks={tasks} />
+        <div className="space-y-4">
+          <div role="tablist" aria-label="Timeline view" className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-900">
+            {(["due", "stages"] as const).map((v) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={timelineView === v}
+                onClick={() => setTimelineView(v)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${timelineView === v ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+              >
+                {v === "due" ? "Due dates" : "Stages"}
+              </button>
+            ))}
+          </div>
+          {timelineView === "due" ? <ProjectTimeline tasks={tasks} /> : <StageTimeline projectId={project.id} />}
+        </div>
       ) : activeTab === "rules" ? (
         <ProjectRules
           projectId={project.id}
           columns={columns}
           people={project.teamMemberIds.map((m) => userMap.get(m)).filter((u): u is User => !!u).map((u) => ({ id: u.id, name: u.name }))}
-          canManage={canManage}
+          canManage={canManage && currentUser?.role === "Admin"} // only Admins set up rules
           closed={closed}
         />
       ) : (

@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import type {
   Activity,
   Comment,
@@ -39,6 +40,17 @@ const getApiBaseUrl = () => {
 export const API_BASE_URL = getApiBaseUrl();
 const TOKEN_KEY = "authToken";
 const SESSION_EXPIRED_MESSAGE = "Session expired. Logged in from another device.";
+
+// When a sign-in really ends, every page that was loading used to pop its own toast with the server's raw
+// words ("Invalid or expired token", twice or more) next to the one plain "Your session has ended" notice.
+// For a few seconds after that, those raw words are held back, and the ended-session event fires once.
+const RAW_SIGNIN_WORDS = new Set(["Invalid or expired token", "Authentication required", "User no longer exists", SESSION_EXPIRED_MESSAGE]);
+let sessionEndedAt = 0;
+const showError = toast.error;
+(toast as unknown as { error: typeof toast.error }).error = ((message: unknown, options?: unknown) => {
+  if (typeof message === "string" && RAW_SIGNIN_WORDS.has(message) && Date.now() - sessionEndedAt < 5000) return "";
+  return (showError as (m: unknown, o?: unknown) => string | number)(message, options);
+}) as typeof toast.error;
 
 export type RawUser = {
   id: string;
@@ -515,7 +527,9 @@ async function sendNow<T>(path: string, options: RequestInit = {}) {
 
     // Any 401 on a signed-in request means the session is gone (expired, replaced, or account removed)
     if (response.status === 401 && token) {
-      window.dispatchEvent(
+      const first = Date.now() - sessionEndedAt > 5000;
+      sessionEndedAt = Date.now();
+      if (first) window.dispatchEvent(
         new CustomEvent("auth:session-expired", {
           detail: {
             message: data?.message === SESSION_EXPIRED_MESSAGE
@@ -673,6 +687,11 @@ export const api = {
 
   // ----- board columns and rules (11 Nov) -----
   // A project's columns in board order (an older server has none: the usual four stand in)
+  // How long each task spent in each stage, in order (Timeline -> Stages)
+  async getStageHistory(projectId: string) {
+    return request<Array<{ id: string; title: string; status: string; createdAt: string; segments: Array<{ stage: string; from: string; to: string | null }> }>>(`/projects/${projectId}/stage-history`);
+  },
+
   async getColumns(projectId: string): Promise<BoardColumn[]> {
     try {
       const raw = await request<RawColumn[]>(`/projects/${projectId}/columns`);
@@ -1248,7 +1267,7 @@ export const api = {
     });
   },
 
-  async reportAssetProblem(id: string, payload: { problemCategory: string; description: string; photoUrl?: string }): Promise<{ success: boolean; message: string }> {
+  async reportAssetProblem(id: string, payload: { problemCategory?: string; description: string; photoUrl?: string }): Promise<{ success: boolean; message: string }> {
     return request<{ success: boolean; message: string }>(`/assets/${id}/report-problem`, {
       method: "POST",
       body: JSON.stringify(payload)

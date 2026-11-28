@@ -16,7 +16,8 @@ const loaders = {
   Trash: () => import("./Trash").then((m) => ({ default: m.Trash })),
   AuditLog: () => import("./AuditLog").then((m) => ({ default: m.AuditLog })),
   Assets: () => import("./Assets").then((m) => ({ default: m.Assets })),
-  AssetDetails: () => import("./AssetDetails").then((m) => ({ default: m.AssetDetails }))
+  AssetDetails: () => import("./AssetDetails").then((m) => ({ default: m.AssetDetails })),
+  Help: () => import("./help/Help").then((m) => ({ default: m.Help }))
 };
 
 export const Pages = Object.fromEntries(Object.entries(loaders).map(([name, load]) => [name, lazy(load)])) as {

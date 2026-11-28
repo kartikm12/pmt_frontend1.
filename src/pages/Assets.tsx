@@ -136,6 +136,7 @@ function Register() {
   if (!items && !error) return <PageLoader />;
 
   const cards = [
+    { label: "Total", value: summary?.totalAssets ?? 0, filter: "" },
     { label: "Assigned", value: summary?.assigned ?? 0, filter: "ASSIGNED" },
     { label: "In stock", value: summary?.inStock ?? 0, filter: "IN_STOCK" },
     { label: "In repair", value: summary?.inRepair ?? 0, filter: "IN_REPAIR" },
@@ -163,14 +164,14 @@ function Register() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {cards.map((c) => (
           <button
             key={c.label}
             type="button"
-            data-summary={c.filter}
+            data-summary={c.filter || "TOTAL"}
             onClick={() => setStatus(status === c.filter ? "" : c.filter)}
-            className={cn("card p-4 text-left transition-colors", status === c.filter ? "ring-2 ring-indigo-500" : "hover:border-slate-300 dark:hover:border-slate-600")}
+            className={cn("card p-4 text-left transition-colors", c.filter && status === c.filter ? "ring-2 ring-indigo-500" : "hover:border-slate-300 dark:hover:border-slate-600")}
           >
             <p className="text-xs text-slate-500 dark:text-slate-400">{c.label}</p>
             <p className={cn("text-2xl font-semibold mt-1", c.warn ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white")}>{c.value}</p>
@@ -214,7 +215,7 @@ function Register() {
           <>
             <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 px-2 pt-5 pb-2 text-xs text-slate-400 dark:text-slate-500">
               <span>Asset</span>
-              <span>With</span>
+              <span>Assignee</span>
               <span>Status</span>
               <span>Warranty</span>
             </div>

@@ -35,7 +35,7 @@ const ACTIONS: { id: RuleActionType; name: string }[] = [
   { id: "MOVE_TO_COLUMN", name: "Move to column" },
   { id: "SET_PRIORITY", name: "Set priority" },
   { id: "ADD_LABEL", name: "Add label" },
-  { id: "ADD_WATCHER", name: "Add as watcher" }
+  { id: "ADD_WATCHER", name: "Add as follower" }
 ];
 const PRIORITIES = [{ id: "LOW", name: "Low" }, { id: "MEDIUM", name: "Medium" }, { id: "HIGH", name: "High" }, { id: "URGENT", name: "Urgent" }];
 const GROUPS = [{ id: "PROJECT_MANAGERS", name: "The project managers" }, { id: "ASSIGNEES", name: "The task's assignees" }];
@@ -107,7 +107,7 @@ export function describeRule(rule: Pick<ProjectRule, "trigger" | "triggerValue" 
   const thens = rule.actions.map((a) => {
     switch (a.type) {
       case "ASSIGN": return `assign ${who(a.value)}`;
-      case "ADD_WATCHER": return `add ${who(a.value)} as a watcher`;
+      case "ADD_WATCHER": return `add ${who(a.value)} as a follower`;
       case "MOVE_TO_COLUMN": return `move it to ${col(a.value)}`;
       case "SET_PRIORITY": return `set priority to ${pri(a.value)}`;
       case "ADD_LABEL": return `add the label ${a.value}`;
@@ -286,7 +286,7 @@ export function ProjectRules({ projectId, columns, people, canManage, closed }: 
             <div className="text-center">
               <Zap className="w-6 h-6 mx-auto text-slate-300 dark:text-slate-600" aria-hidden="true" />
               <p className="mt-3 font-semibold text-slate-700 dark:text-slate-200">No rules yet</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{editable ? "Start from an example, or make your own with New rule." : "When a project manager adds a rule, it shows here."}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{editable ? "Start from an example, or make your own with New rule." : "Only Admins can set up rules. When one is added, it shows here."}</p>
             </div>
             {editable && !editing && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">

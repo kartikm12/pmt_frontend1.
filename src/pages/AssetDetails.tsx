@@ -23,7 +23,7 @@ type Dialog = "assign" | "return" | "repair" | "repairDone" | "report" | "qr" | 
 
 // History wording by kind of entry (so entries saved with older wording read the same way)
 const EVENT_LABEL: Record<string, string> = {
-  CREATED: "Added", UPDATED: "Changed", ASSIGNED: "Handed over", RECEIPT_CONFIRMED: "Received", RETURNED: "Returned",
+  CREATED: "Added", UPDATED: "Changed", ASSIGNED: "Assigned", RECEIPT_CONFIRMED: "Received", RETURNED: "Returned",
   MARKED_FOR_REPAIR: "Sent to repair", REPAIR_COMPLETED: "Repair done", MARKED_LOST: "Marked lost", RETIRED: "Retired",
   DELETED: "Deleted", RESTORED: "Restored", PROBLEM_REPORTED: "Problem reported", COLLECTION_REQUESTED: "To collect"
 };
@@ -35,10 +35,21 @@ const OLD_CHANGE_WORDING: Record<string, { label: string; strip: RegExp }> = {
 };
 const eventLabel = (h: AssetEvent) =>
   h.eventType === "UPDATED" ? OLD_CHANGE_WORDING[h.title]?.label ?? h.title : EVENT_LABEL[h.eventType] ?? h.title;
+// Older entries saved codes and ids ("Receipt confirmed by cm…", "Disposition: STOCK"): say them in words
+const OLD_DETAIL: Partial<Record<string, (d: string) => string>> = {
+  RECEIPT_CONFIRMED: (d) => (/^Receipt confirmed by \S+$/.test(d) ? "Confirmed they have it" : d),
+  RETURNED: (d) => d.replace(/^Returned from (.+) \(Disposition: (\w+)\)$/, (_m, who, to) => `Returned by ${who}, ${to === "REPAIR" ? "sent to repair" : "back in stock"}`),
+  REPAIR_COMPLETED: (d) => d.replace(/^Repair completed\. Condition: (\w+)\. Disposition: (\w+)$/, (_m, c, to) => `Condition ${c.toLowerCase()}, ${to === "ASSIGN" ? "assigned again" : "back in stock"}`),
+  MARKED_LOST: (d) => (d === "Asset reported lost" ? "Reported lost" : d),
+  RETIRED: (d) => (d === "Asset formally retired" ? "No longer in use" : d),
+  DELETED: (d) => (/^Asset moved to trash/.test(d) ? "Kept in Recently deleted for 30 days" : d),
+  RESTORED: (d) => (d === "Asset restored from Recently Deleted" ? "Brought back from Recently deleted" : d)
+};
 const eventDetail = (h: AssetEvent) => {
   if (h.eventType === "CREATED") return "";
   const old = h.eventType === "UPDATED" ? OLD_CHANGE_WORDING[h.title] : undefined;
-  return old ? h.description.replace(old.strip, "") : h.description;
+  if (old) return h.description.replace(old.strip, "");
+  return OLD_DETAIL[h.eventType]?.(h.description ?? "") ?? h.description;
 };
 
 const money = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -106,7 +117,6 @@ export function AssetDetails() {
     a.category?.name,
     a.serialNumber ? `Serial ${a.serialNumber}` : null,
     a.purchaseDate ? `Bought ${format(new Date(a.purchaseDate), "d MMM yyyy")}` : null,
-    typeof a.purchaseCost === "number" ? money(a.purchaseCost) : null,
     a.vendorName ? `from ${a.vendorName}` : null
   ].filter(Boolean);
 
@@ -138,7 +148,7 @@ export function AssetDetails() {
 
   // Buttons: only what this person may do in the item's current state
   const actions: { key: Dialog; label: string; icon: typeof Check; show: boolean; danger?: boolean }[] = [
-    { key: "assign", label: "Hand over", icon: ArrowRightLeft, show: can && (a.status === "IN_STOCK" || (a.status === "IN_REPAIR" && !a.currentHolderId)) },
+    { key: "assign", label: "Assign", icon: ArrowRightLeft, show: can && (a.status === "IN_STOCK" || (a.status === "IN_REPAIR" && !a.currentHolderId)) },
     { key: "return", label: "Return", icon: RotateCcw, show: can && a.status === "ASSIGNED" },
     { key: "repair", label: "Send to repair", icon: Wrench, show: can && (a.status === "ASSIGNED" || a.status === "IN_STOCK") },
     { key: "repairDone", label: "Repair done", icon: CheckCircle2, show: can && a.status === "IN_REPAIR" },
@@ -186,7 +196,7 @@ export function AssetDetails() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
           <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-4" data-holder>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">With</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Assignee</p>
             {who ? (
               <>
                 <div className="flex items-center gap-3">
@@ -201,7 +211,7 @@ export function AssetDetails() {
                     {asg.receiptStatus === "CONFIRMED" ? (
                       <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" /> Received {asg.receiptConfirmedAt ? format(new Date(asg.receiptConfirmedAt), "d MMM yyyy") : ""}</>
                     ) : (
-                      <><Clock className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" /> Handed over {asg.assignedAt ? formatDistanceToNow(new Date(asg.assignedAt), { addSuffix: true }) : ""}, not confirmed yet</>
+                      <><Clock className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" /> Assigned {asg.assignedAt ? formatDistanceToNow(new Date(asg.assignedAt), { addSuffix: true }) : ""}, not confirmed yet</>
                     )}
                     {` · condition ${CONDITION_LABEL[a.condition] ?? a.condition}`}
                   </p>

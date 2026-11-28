@@ -9,6 +9,7 @@ import type { Notification, NotificationType } from "@/lib/api-types";
 import { useNotifications } from "@/context/NotificationContext";
 import { safeFormat } from "@/utils/dateUtils";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { ShowMore, useShowMore } from "@/components/ui/ShowMore";
 
 export function Notifications() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export function Notifications() {
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   const filteredNotifications = notifications.filter((n) => filter === "all" || !n.isRead);
+  const { shown: shownNotifications, left: notificationsLeft, more: showMoreNotifications } = useShowMore(filteredNotifications, 20, filter);
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const handleMarkAsRead = async (id: string) => {
@@ -129,7 +131,7 @@ export function Notifications() {
               <p className="text-slate-500 dark:text-slate-400">No notifications to show here.</p>
             </motion.div>
           ) : (
-            filteredNotifications.map((n) => (
+            shownNotifications.map((n) => (
               <motion.div 
                 key={n.id} 
                 layout 
@@ -194,6 +196,7 @@ export function Notifications() {
             ))
           )}
         </AnimatePresence>
+        <ShowMore left={notificationsLeft} onMore={showMoreNotifications} />
       </div>
     </div>
   );

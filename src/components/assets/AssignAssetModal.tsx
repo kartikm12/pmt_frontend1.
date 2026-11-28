@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useEscapeToClose } from "./assetUi";
+import { useAssigneeProjects, useEscapeToClose } from "./assetUi";
 import { createPortal } from "react-dom";
 import { X, UserCheck, AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ export function AssignAssetModal({
 
   const [employeeId, setEmployeeId] = useState("");
   const [projectId, setProjectId] = useState("");
+  const assigneeProjects = useAssigneeProjects(projects, employeeId, projectId, setProjectId);
   const [condition, setCondition] = useState<AssetCondition>("GOOD");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -130,7 +131,7 @@ export function AssignAssetModal({
               <UserCheck className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-base">Hand Over</h3>
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">Hand over</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">{asset.name} ({asset.assetTag})</p>
             </div>
           </div>
@@ -157,7 +158,7 @@ export function AssignAssetModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center justify-between">
-              <span>Who gets it <span className="text-rose-500">*</span></span>
+              <span>Assignee <span className="text-rose-500">*</span></span>
               {!isAdmin && hierarchyIds.size > 0 && (
                 <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-normal">
                   {hierarchyIds.size} team member{hierarchyIds.size > 1 ? "s" : ""} report to you
@@ -168,28 +169,28 @@ export function AssignAssetModal({
               options={userOptions}
               selectedId={employeeId}
               onChange={setEmployeeId}
-              placeholder={userOptions.length === 0 ? "No eligible employees found..." : "Pick a person..."}
+              placeholder={userOptions.length === 0 ? "No eligible employees found..." : "Pick the assignee..."}
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-              Project <span className="text-slate-400 font-normal">(Optional)</span>
+              Project <span className="text-slate-400 font-normal">(optional)</span>
             </label>
             <SingleSelectDropdown
               options={[
                 { id: "", name: "No project" },
-                ...projects.map((p) => ({ id: p.id, name: p.name }))
+                ...assigneeProjects.map((p) => ({ id: p.id, name: p.name }))
               ]}
               selectedId={projectId}
               onChange={setProjectId}
-              placeholder="Select Project..."
+              placeholder={employeeId ? (assigneeProjects.length ? "Pick one of their projects..." : "They aren't on any project") : "Pick the assignee first"}
             />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-              Handover Condition
+              Condition when assigned
             </label>
             <SingleSelectDropdown
               options={[
@@ -234,7 +235,7 @@ export function AssignAssetModal({
               disabled={isSubmitting}
               className="btn-primary h-10 px-6 text-sm font-semibold flex items-center gap-2"
             >
-              {isSubmitting ? "Assigning..." : "Hand over"}
+              {isSubmitting ? "Assigning..." : "Assign"}
             </button>
           </div>
         </form>

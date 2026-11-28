@@ -7,7 +7,8 @@ export function Breadcrumbs() {
   const { getEntityName } = useNavigation();
   const pathnames = location.pathname.split("/").filter((x) => x);
 
-  if (location.pathname === "/") return null;
+  // Help pages carry their own trail (Help > section)
+  if (location.pathname === "/" || location.pathname.startsWith("/help")) return null;
 
   return (
     <nav aria-label="Breadcrumb" className="flex items-center min-w-0 space-x-2 text-sm text-zinc-500 dark:text-zinc-400 mb-6 animate-in fade-in slide-in-from-left-4 duration-500">
